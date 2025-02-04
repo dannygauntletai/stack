@@ -25,9 +25,9 @@ struct CommentsSheet: View {
                         LazyVStack(spacing: 16) {
                             ForEach(viewModel.comments) { comment in
                                 CommentRow(comment: comment, viewModel: viewModel)
-                            }
-                        }
-                        .padding()
+                }
+            }
+            .padding()
                     }
                 }
                 
@@ -295,7 +295,7 @@ struct CommentRow: View {
                     await viewModel.toggleCommentLike(comment: comment)
                 }
             } label: {
-                VStack(spacing: 4) {
+            VStack(spacing: 4) {
                     Image(systemName: viewModel.likedCommentIds.contains(comment.id) ? "heart.fill" : "heart")
                         .font(.system(size: 24))
                         .foregroundStyle(viewModel.likedCommentIds.contains(comment.id) ? .red : .gray)

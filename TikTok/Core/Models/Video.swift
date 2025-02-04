@@ -9,6 +9,7 @@ struct Video: Identifiable {
     var likes: Int
     var comments: Int
     var shares: Int
+    var thumbnailUrl: String?  // Optional thumbnail URL
     
     var dictionary: [String: Any] {
         return [

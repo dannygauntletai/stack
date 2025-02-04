@@ -11,10 +11,15 @@ class FeedViewModel: ObservableObject {
     @Published var likedVideoIds: Set<String> = []
     private let db = Firestore.firestore()
     
-    func fetchVideos() async {
+    func fetchVideos(initialVideo: Video? = nil) async {
         isLoading = true
         
         do {
+            if let initialVideo = initialVideo {
+                // Add initial video first
+                videos = [initialVideo]
+            }
+            
             let snapshot = try await db.collection("videos")
                 .order(by: "createdAt", descending: true)
                 .limit(to: 20)
@@ -31,27 +36,33 @@ class FeedViewModel: ObservableObject {
                 }
             }
             
+            let fetchedVideos = snapshot.documents.compactMap { (document: QueryDocumentSnapshot) -> Video? in
+                guard let videoUrl = document.get("videoUrl") as? String,
+                      let caption = document.get("caption") as? String,
+                      let userId = document.get("userId") as? String,
+                      let createdAt = document.get("createdAt") as? Timestamp,
+                      let likes = document.get("likes") as? Int,
+                      let comments = document.get("comments") as? Int,
+                      let shares = document.get("shares") as? Int
+                else { return nil }
+                
+                return Video(
+                    id: document.documentID,
+                    videoUrl: videoUrl,
+                    caption: caption,
+                    createdAt: createdAt.dateValue(),
+                    userId: userId,
+                    likes: likes,
+                    comments: comments,
+                    shares: shares
+                )
+            }
+            
             await MainActor.run {
-                self.videos = snapshot.documents.compactMap { document in
-                    guard let videoUrl = document.get("videoUrl") as? String,
-                          let caption = document.get("caption") as? String,
-                          let userId = document.get("userId") as? String,
-                          let createdAt = document.get("createdAt") as? Timestamp,
-                          let likes = document.get("likes") as? Int,
-                          let comments = document.get("comments") as? Int,
-                          let shares = document.get("shares") as? Int
-                    else { return nil }
-                    
-                    return Video(
-                        id: document.documentID,
-                        videoUrl: videoUrl,
-                        caption: caption,
-                        createdAt: createdAt.dateValue(),
-                        userId: userId,
-                        likes: likes,
-                        comments: comments,
-                        shares: shares
-                    )
+                if initialVideo != nil {
+                    self.videos += fetchedVideos.filter { $0.id != initialVideo?.id }
+                } else {
+                    self.videos = fetchedVideos
                 }
                 self.isLoading = false
             }

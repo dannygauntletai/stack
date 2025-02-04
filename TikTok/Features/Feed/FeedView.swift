@@ -5,9 +5,25 @@ struct FeedView: View {
     @State private var currentIndex = 0
     @State private var currentInteraction = VideoInteraction(likes: 0, comments: 0, isLiked: false)
     @State private var showComments = false
+    let initialVideo: Video?
+    var isDeepLinked: Bool = false
+    var onBack: (() -> Void)? = nil
+    @State private var dragOffset = CGSize.zero
+    @Environment(\.dismiss) private var dismiss
+    
+    init(
+        initialVideo: Video? = nil,
+        isDeepLinked: Bool = false,
+        onBack: (() -> Void)? = nil
+    ) {
+        self.initialVideo = initialVideo
+        self.isDeepLinked = isDeepLinked
+        self.onBack = onBack
+        _currentIndex = State(initialValue: 0)
+    }
     
     var body: some View {
-        ZStack(alignment: .trailing) {
+        ZStack {
             if viewModel.isLoading {
                 ProgressView()
             } else if let error = viewModel.error {
@@ -33,17 +49,38 @@ struct FeedView: View {
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                 }
                 
-                // Overlay
-                if !viewModel.videos.isEmpty {
-                    VideoOverlayView(
-                        video: viewModel.videos[currentIndex],
-                        viewModel: viewModel,
-                        interaction: $currentInteraction,
-                        onCommentsPress: { showComments = true }
-                    )
-                    .frame(width: 80)
-                    .padding(.trailing, 8)
-                    .padding(.bottom, 140)
+                ZStack(alignment: .trailing) {
+                    Color.clear
+                    
+                    if !viewModel.videos.isEmpty {
+                        VideoOverlayView(
+                            video: viewModel.videos[currentIndex],
+                            viewModel: viewModel,
+                            interaction: $currentInteraction,
+                            onCommentsPress: { showComments = true }
+                        )
+                        .frame(width: 80)
+                        .padding(.trailing, 8)
+                        .padding(.bottom, 140)
+                    }
+                }
+                
+                if isDeepLinked {
+                    VStack {
+                        HStack {
+                            Button {
+                                onBack?()
+                            } label: {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 24, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(16)
+                            }
+                            Spacer()
+                        }
+                        .padding(.top, 44)
+                        Spacer()
+                    }
                 }
             }
         }
@@ -76,8 +113,38 @@ struct FeedView: View {
             updateInteractionState(for: currentIndex)
         }
         .task {
-            await viewModel.fetchVideos()
+            await viewModel.fetchVideos(initialVideo: initialVideo)
+            if initialVideo != nil {
+                // Ensure we update interaction state for initial video
+                updateInteractionState(for: currentIndex)
+            }
         }
+        .offset(x: dragOffset.width > 0 ? dragOffset.width : 0)
+        .gesture(
+            DragGesture()
+                .onChanged { gesture in
+                    if isDeepLinked {
+                        dragOffset = gesture.translation
+                    }
+                }
+                .onEnded { gesture in
+                    if isDeepLinked {
+                        let threshold = UIScreen.main.bounds.width * 0.3
+                        if gesture.translation.width > threshold {
+                            withAnimation(.easeOut) {
+                                dragOffset = CGSize(width: UIScreen.main.bounds.width, height: 0)
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                onBack?()
+                            }
+                        } else {
+                            withAnimation(.easeOut) {
+                                dragOffset = .zero
+                            }
+                        }
+                    }
+                }
+        )
     }
     
     private func updateInteractionState(for index: Int) {

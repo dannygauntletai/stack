@@ -143,26 +143,76 @@ struct PostsGridView: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 1) {
             ForEach(videos) { video in
-                Color.gray.opacity(0.3)
-                    .aspectRatio(1, contentMode: .fill)
-                    .overlay(
-                        VStack {
-                            Spacer()
-                            HStack {
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 12))
-                                Text("\(video.likes)")
-                                    .font(.system(size: 12))
-                                    .fontWeight(.semibold)
-                            }
-                            .foregroundColor(.white)
-                            .padding(.bottom, 6)
-                            .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 0)
-                        }
-                    )
-                    .clipped()
+                VideoThumbnail(video: video)
             }
         }
+    }
+}
+
+struct VideoThumbnail: View {
+    let video: Video
+    @State private var showVideo = false
+    @State private var thumbnailURL: URL?
+    
+    var body: some View {
+        ZStack {
+            if let url = thumbnailURL {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } placeholder: {
+                    placeholderView
+                }
+            } else {
+                placeholderView
+            }
+        }
+        .frame(width: UIScreen.main.bounds.width / 3, height: UIScreen.main.bounds.width / 3)
+        .clipped()
+        .onTapGesture {
+            showVideo = true
+        }
+        .task {
+            // If no thumbnail, try to generate one
+            if video.thumbnailUrl == nil {
+                await ThumbnailManager.shared.ensureThumbnail(for: video)
+            }
+            if let urlString = video.thumbnailUrl {
+                thumbnailURL = URL(string: urlString)
+            }
+        }
+        .fullScreenCover(isPresented: $showVideo) {
+            NavigationStack {
+                FeedView(
+                    initialVideo: video,
+                    isDeepLinked: true,
+                    onBack: { showVideo = false }
+                )
+                .navigationBarHidden(true)
+                .ignoresSafeArea()
+            }
+        }
+    }
+    
+    private var placeholderView: some View {
+        Rectangle()
+            .fill(Color.gray.opacity(0.3))
+            .overlay(
+                VStack {
+                    Spacer()
+                    HStack {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 12))
+                        Text("\(video.likes)")
+                            .font(.system(size: 12))
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.bottom, 6)
+                    .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 0)
+                }
+            )
     }
 }
 
