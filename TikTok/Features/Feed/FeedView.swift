@@ -56,6 +56,12 @@ struct FeedView: View {
         }
         .onChange(of: currentIndex) { _, newValue in
             updateInteractionState(for: newValue)
+            
+            // Prefetch next video
+            if newValue + 1 < viewModel.videos.count {
+                let nextVideo = viewModel.videos[newValue + 1]
+                VideoPlayerViewModel.prefetchVideo(url: nextVideo.videoUrl)
+            }
         }
         .onAppear {
             // Ensure correct state when returning to the feed

@@ -16,9 +16,9 @@ struct VideoOverlayView: View {
                     toggleLike()
                 } label: {
                     VStack(spacing: 4) {
-                        Image(systemName: interaction.isLiked ? "heart.fill" : "heart")
+                        Image(systemName: viewModel.likedVideoIds.contains(video.id) ? "heart.fill" : "heart")
                             .font(.system(size: 32))
-                            .foregroundStyle(interaction.isLiked ? .red : .white)
+                            .foregroundStyle(viewModel.likedVideoIds.contains(video.id) ? .red : .white)
                         Text(formatCount(interaction.likes))
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white)
@@ -33,7 +33,6 @@ struct VideoOverlayView: View {
                             .foregroundStyle(.white)
                         Text(formatCount(interaction.comments))
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white)
                     }
                 }
                 

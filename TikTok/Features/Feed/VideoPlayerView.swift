@@ -37,6 +37,7 @@ class VideoPlayerViewModel: ObservableObject {
     @Published private(set) var player: AVPlayer?
     private let video: Video
     private var playerItem: AVPlayerItem?
+    private static var assetCache = NSCache<NSString, AVURLAsset>()
     
     init(video: Video) {
         self.video = video
@@ -46,26 +47,58 @@ class VideoPlayerViewModel: ObservableObject {
     }
     
     private func setupPlayer() async {
-        guard let url = URL(string: video.videoUrl) else { return }  // Use video URL from Firestore
+        guard let url = URL(string: video.videoUrl) else { return }
+        
+        // Check cache first
+        let urlKey = NSString(string: url.absoluteString)
+        if let cachedAsset = Self.assetCache.object(forKey: urlKey) {
+            configurePlayer(with: cachedAsset)
+            return
+        }
         
         let asset = AVURLAsset(url: url)
         do {
             let _ = try await asset.load(.tracks, .duration)
-            playerItem = AVPlayerItem(asset: asset)
-            player = AVPlayer(playerItem: playerItem)
-            
-            // Set up looping
-            NotificationCenter.default.addObserver(
-                forName: .AVPlayerItemDidPlayToEndTime,
-                object: playerItem,
-                queue: nil) { [weak self] _ in
-                    Task { @MainActor [weak self] in
-                        self?.player?.seek(to: .zero)
-                        self?.player?.play()
-                    }
-                }
+            // Cache the loaded asset
+            Self.assetCache.setObject(asset, forKey: urlKey)
+            configurePlayer(with: asset)
         } catch {
             print("Failed to load asset:", error)
+        }
+    }
+    
+    private func configurePlayer(with asset: AVURLAsset) {
+        playerItem = AVPlayerItem(asset: asset)
+        player = AVPlayer(playerItem: playerItem)
+        
+        // Set up looping
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: nil) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.player?.seek(to: .zero)
+                    self?.player?.play()
+                }
+            }
+    }
+    
+    // Add prefetch method
+    static func prefetchVideo(url: String) {
+        guard let videoURL = URL(string: url) else { return }
+        let urlKey = NSString(string: videoURL.absoluteString)
+        
+        // Skip if already cached
+        guard assetCache.object(forKey: urlKey) == nil else { return }
+        
+        let asset = AVURLAsset(url: videoURL)
+        Task {
+            do {
+                let _ = try await asset.load(.tracks, .duration)
+                assetCache.setObject(asset, forKey: urlKey)
+            } catch {
+                print("Failed to prefetch video:", error)
+            }
         }
     }
     
