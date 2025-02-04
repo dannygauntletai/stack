@@ -3,6 +3,7 @@ import SwiftUI
 struct ProfileView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
     @State private var selectedTab = 0
+    @State private var showingMenu = false
     
     var body: some View {
         NavigationView {
@@ -84,9 +85,26 @@ struct ProfileView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {}) {
+                    Menu {
+                        // Other menu items first
+                        Button(action: {}) {
+                            Label("Settings", systemImage: "gearshape")
+                        }
+                        
+                        Button(action: {}) {
+                            Label("Privacy", systemImage: "lock")
+                        }
+                        
+                        // Logout at the bottom
+                        Button(role: .destructive, action: {
+                            authViewModel.signOut()
+                        }) {
+                            Label("Log out", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
+                    } label: {
                         Image(systemName: "ellipsis")
                             .foregroundColor(.white)
+                            .font(.system(size: 20))
                     }
                 }
             }
