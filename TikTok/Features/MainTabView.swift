@@ -9,18 +9,33 @@ struct MainTabView: View {
             FeedView()
                 .tabItem {
                     Image(systemName: "house")
+                        .environment(\.symbolVariants, .none)
                     Text("Home")
                 }
                 .tag(0)
             
+            Text("Upload") // Placeholder for upload view
+                .tabItem {
+                    Image(systemName: "plus.square")
+                        .environment(\.symbolVariants, .none)
+                    Text("Upload")
+                }
+                .tag(1)
+            
             ProfileView()
                 .tabItem {
                     Image(systemName: "person")
+                        .environment(\.symbolVariants, .none)
                     Text("Profile")
                 }
-                .tag(1)
+                .tag(2)
         }
+        .tint(.white)
         .onAppear {
+            // Set white color for tab items
+            UITabBar.appearance().unselectedItemTintColor = .white
+            UITabBar.appearance().tintColor = .white
+            
             // Hide tab bar when in feed
             let tabBarAppearance = UITabBarAppearance()
             if selectedTab == 0 {
