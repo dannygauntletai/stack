@@ -141,10 +141,7 @@ class VideoUploadViewModel: ObservableObject {
     }
     
     private func uploadThumbnail(for videoId: String, image: UIImage) async throws -> String {
-        print("DEBUG: Starting thumbnail upload for video: \(videoId)")
-        
         guard let imageData = image.jpegData(compressionQuality: 0.7) else {
-            print("DEBUG: Failed to convert thumbnail to JPEG")
             throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to data"])
         }
         
@@ -153,14 +150,10 @@ class VideoUploadViewModel: ObservableObject {
         metadata.contentType = "image/jpeg"
         
         do {
-            print("DEBUG: Uploading thumbnail data...")
             _ = try await thumbnailRef.putDataAsync(imageData, metadata: metadata)
-            print("DEBUG: Getting thumbnail download URL...")
             let downloadURL = try await thumbnailRef.downloadURL()
-            print("DEBUG: Thumbnail upload complete. URL: \(downloadURL.absoluteString)")
             return downloadURL.absoluteString
         } catch {
-            print("DEBUG: Thumbnail upload failed with error: \(error.localizedDescription)")
             throw error
         }
     }
@@ -173,8 +166,6 @@ class VideoUploadViewModel: ObservableObject {
         userId: String,
         completion: @escaping (Result<Video, Error>) -> Void
     ) {
-        print("DEBUG: Saving to Firestore with thumbnail URL: \(thumbnailURL)")
-        
         let video = Video(
             id: videoId,
             videoUrl: videoURL,
@@ -186,8 +177,6 @@ class VideoUploadViewModel: ObservableObject {
             shares: 0,
             thumbnailUrl: thumbnailURL
         )
-        
-        print("DEBUG: Video dictionary: \(video.dictionary)")
         
         let docRef = db.collection("videos").document(video.id)
         

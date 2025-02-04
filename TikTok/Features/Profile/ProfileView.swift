@@ -163,17 +163,11 @@ struct VideoThumbnail: View {
                         image
                             .resizable()
                             .scaledToFill()
-                            .onAppear { print("DEBUG: Successfully loaded thumbnail for video \(video.id)") }
-                    case .failure(let error):
+                    case .failure(_):
                         placeholderView
                             .overlay {
                                 Image(systemName: "exclamationmark.triangle")
                                     .foregroundColor(.white)
-                            }
-                            .onAppear {
-                                print("DEBUG: Failed to load thumbnail for video \(video.id)")
-                                print("DEBUG: Error: \(error.localizedDescription)")
-                                print("DEBUG: URL attempted: \(url.absoluteString)")
                             }
                     case .empty:
                         placeholderView
@@ -181,17 +175,12 @@ struct VideoThumbnail: View {
                                 ProgressView()
                                     .tint(.white)
                             }
-                            .onAppear { print("DEBUG: Loading thumbnail for video \(video.id)") }
                     @unknown default:
                         placeholderView
                     }
                 }
             } else {
                 placeholderView
-                    .onAppear {
-                        print("DEBUG: No thumbnail URL for video \(video.id)")
-                        print("DEBUG: Raw thumbnailUrl value: \(String(describing: video.thumbnailUrl))")
-                    }
             }
         }
         .frame(width: UIScreen.main.bounds.width / 3, height: UIScreen.main.bounds.width / 3)
@@ -200,17 +189,8 @@ struct VideoThumbnail: View {
             showVideo = true
         }
         .onAppear {
-            print("DEBUG: VideoThumbnail appeared for video \(video.id)")
             if let urlString = video.thumbnailUrl {
-                print("DEBUG: Found URL string: \(urlString)")
-                if let url = URL(string: urlString) {
-                    print("DEBUG: Successfully created URL: \(url.absoluteString)")
-                    self.thumbnailURL = url
-                } else {
-                    print("DEBUG: Failed to create URL from string: \(urlString)")
-                }
-            } else {
-                print("DEBUG: No thumbnailUrl found for video \(video.id)")
+                thumbnailURL = URL(string: urlString)
             }
         }
         .fullScreenCover(isPresented: $showVideo) {
