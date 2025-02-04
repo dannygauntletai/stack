@@ -3,7 +3,7 @@ import SwiftUI
 struct VideoOverlayView: View {
     let video: Video
     @Binding var interaction: VideoInteraction
-    var onCommentsPress: () -> Void
+    let onCommentsPress: () -> Void
     
     var body: some View {
         VStack {
@@ -12,8 +12,7 @@ struct VideoOverlayView: View {
             VStack(spacing: 12) {
                 // Like Button
                 Button {
-                    interaction.isLiked.toggle()
-                    interaction.likes += interaction.isLiked ? 1 : -1
+                    toggleLike()
                 } label: {
                     VStack(spacing: 4) {
                         Image(systemName: interaction.isLiked ? "heart.fill" : "heart")
@@ -69,6 +68,15 @@ struct VideoOverlayView: View {
             .padding(.trailing, -32)
         }
         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+    }
+    
+    private func toggleLike() {
+        interaction.isLiked.toggle()
+        let newLikeCount = video.likes + (interaction.isLiked ? 1 : -1)
+        // Update UI immediately
+        interaction.likes = newLikeCount
+        // Update Firestore
+        FeedViewModel().updateVideoStats(videoId: video.id, likes: newLikeCount)
     }
     
     // Format counts like 1.2K, 4.5M etc
