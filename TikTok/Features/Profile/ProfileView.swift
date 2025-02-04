@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
+    @StateObject private var viewModel = ProfileViewModel()
     @State private var selectedTab = 0
     @State private var showingMenu = false
     
@@ -69,13 +70,13 @@ struct ProfileView: View {
                 // Scrollable Content
                 TabView(selection: $selectedTab) {
                     ScrollView {
-                        PostsGridView()
+                        PostsGridView(videos: viewModel.userVideos)
                             .padding(.top, 1)
                     }
                     .tag(0)
                     
                     ScrollView {
-                        PostsGridView()
+                        PostsGridView(videos: viewModel.likedVideos)
                             .padding(.top, 1)
                     }
                     .tag(1)
@@ -109,6 +110,9 @@ struct ProfileView: View {
                 }
             }
         }
+        .task {
+            await viewModel.fetchUserContent()
+        }
     }
 }
 
@@ -134,9 +138,11 @@ struct PostsGridView: View {
         GridItem(.flexible(), spacing: 1)
     ]
     
+    let videos: [Video]
+    
     var body: some View {
         LazyVGrid(columns: columns, spacing: 1) {
-            ForEach(0..<15) { _ in
+            ForEach(videos) { video in
                 Color.gray.opacity(0.3)
                     .aspectRatio(1, contentMode: .fill)
                     .overlay(
@@ -145,7 +151,7 @@ struct PostsGridView: View {
                             HStack {
                                 Image(systemName: "play.fill")
                                     .font(.system(size: 12))
-                                Text("1.2K")
+                                Text("\(video.likes)")
                                     .font(.system(size: 12))
                                     .fontWeight(.semibold)
                             }
