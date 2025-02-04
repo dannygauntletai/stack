@@ -2,6 +2,7 @@ import SwiftUI
 
 struct VideoOverlayView: View {
     let video: Video
+    @ObservedObject var viewModel: FeedViewModel
     @Binding var interaction: VideoInteraction
     let onCommentsPress: () -> Void
     
@@ -73,10 +74,12 @@ struct VideoOverlayView: View {
     private func toggleLike() {
         interaction.isLiked.toggle()
         let newLikeCount = video.likes + (interaction.isLiked ? 1 : -1)
-        // Update UI immediately
         interaction.likes = newLikeCount
-        // Update Firestore
-        FeedViewModel().updateVideoStats(videoId: video.id, likes: newLikeCount)
+        
+        // Use the shared viewModel
+        Task {
+            await viewModel.toggleLike(videoId: video.id)
+        }
     }
     
     // Format counts like 1.2K, 4.5M etc

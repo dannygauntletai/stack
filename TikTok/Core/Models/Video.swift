@@ -6,9 +6,9 @@ struct Video: Identifiable {
     let caption: String
     let createdAt: Date
     let userId: String
-    let likes: Int
-    let comments: Int
-    let shares: Int
+    var likes: Int
+    var comments: Int
+    var shares: Int
     
     var dictionary: [String: Any] {
         return [

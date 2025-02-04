@@ -37,6 +37,7 @@ struct FeedView: View {
                 if !viewModel.videos.isEmpty {
                     VideoOverlayView(
                         video: viewModel.videos[currentIndex],
+                        viewModel: viewModel,
                         interaction: $currentInteraction,
                         onCommentsPress: { showComments = true }
                     )
@@ -54,16 +55,25 @@ struct FeedView: View {
                 .presentationDetents([.medium, .large])
         }
         .onChange(of: currentIndex) { _, newValue in
-            // Reset interaction for new video
-            currentInteraction = VideoInteraction(
-                likes: viewModel.videos[newValue].likes,
-                comments: viewModel.videos[newValue].comments,
-                isLiked: false
-            )
+            updateInteractionState(for: newValue)
+        }
+        .onAppear {
+            // Ensure correct state when returning to the feed
+            updateInteractionState(for: currentIndex)
         }
         .task {
             await viewModel.fetchVideos()
         }
+    }
+    
+    private func updateInteractionState(for index: Int) {
+        guard index < viewModel.videos.count else { return }
+        let video = viewModel.videos[index]
+        currentInteraction = VideoInteraction(
+            likes: video.likes,
+            comments: video.comments,
+            isLiked: viewModel.likedVideoIds.contains(video.id)
+        )
     }
 }
 

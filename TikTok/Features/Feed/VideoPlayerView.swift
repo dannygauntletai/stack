@@ -46,7 +46,7 @@ class VideoPlayerViewModel: ObservableObject {
     }
     
     private func setupPlayer() async {
-        guard let url = URL(string: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4") else { return }
+        guard let url = URL(string: video.videoUrl) else { return }  // Use video URL from Firestore
         
         let asset = AVURLAsset(url: url)
         do {

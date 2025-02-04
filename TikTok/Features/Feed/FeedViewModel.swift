@@ -1,12 +1,14 @@
 import Foundation
 import FirebaseStorage
 import FirebaseFirestore
+import FirebaseAuth
 
 @MainActor
 class FeedViewModel: ObservableObject {
     @Published var videos: [Video] = []
     @Published var isLoading = false
     @Published var error: Error?
+    @Published var likedVideoIds: Set<String> = []
     private let db = Firestore.firestore()
     
     func fetchVideos() async {
@@ -17,6 +19,17 @@ class FeedViewModel: ObservableObject {
                 .order(by: "createdAt", descending: true)
                 .limit(to: 20)
                 .getDocuments()
+            
+            if let userId = Auth.auth().currentUser?.uid {
+                let likedSnapshot = try await db.collection("users")
+                    .document(userId)
+                    .collection("likes")
+                    .getDocuments()
+                
+                await MainActor.run {
+                    self.likedVideoIds = Set(likedSnapshot.documents.map { $0.documentID })
+                }
+            }
             
             await MainActor.run {
                 self.videos = snapshot.documents.compactMap { document in
@@ -58,5 +71,57 @@ class FeedViewModel: ObservableObject {
         guard !data.isEmpty else { return }
         
         db.collection("videos").document(videoId).updateData(data)
+    }
+    
+    func toggleLike(videoId: String) async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        // Check if video exists
+        guard let index = videos.firstIndex(where: { $0.id == videoId }) else { return }
+        
+        // Check current like state
+        let isCurrentlyLiked = likedVideoIds.contains(videoId)
+        
+        do {
+            let batch = db.batch()
+            let videoRef = db.collection("videos").document(videoId)
+            let userLikeRef = db.collection("users")
+                .document(userId)
+                .collection("likes")
+                .document(videoId)
+            
+            let increment = isCurrentlyLiked ? -1 : 1
+            
+            // Update video likes count
+            batch.updateData([
+                "likes": FieldValue.increment(Int64(increment))
+            ], forDocument: videoRef)
+            
+            // Update user's likes collection
+            if isCurrentlyLiked {
+                batch.deleteDocument(userLikeRef)
+                likedVideoIds.remove(videoId)
+            } else {
+                batch.setData(["timestamp": FieldValue.serverTimestamp()], forDocument: userLikeRef)
+                likedVideoIds.insert(videoId)
+            }
+            
+            // Commit the batch
+            try await batch.commit()
+            
+            // Update local state
+            await MainActor.run {
+                videos[index].likes += increment
+            }
+        } catch {
+            // Revert local state if server update fails
+            await MainActor.run {
+                if isCurrentlyLiked {
+                    likedVideoIds.insert(videoId)
+                } else {
+                    likedVideoIds.remove(videoId)
+                }
+            }
+        }
     }
 } 
