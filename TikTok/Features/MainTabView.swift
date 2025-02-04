@@ -13,7 +13,7 @@ struct MainTabView: View {
                 }
                 .tag(0)
             
-            Text("Upload")
+            UploadView()
                 .tabItem {
                     Image(systemName: selectedTab == 1 ? "plus.square.fill" : "plus.square")
                     Text("Upload")
