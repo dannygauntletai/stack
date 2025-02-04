@@ -8,10 +8,18 @@ struct ContentView: View {
             if authViewModel.isAuthenticated {
                 MainTabView()
                     .environmentObject(authViewModel)
+                    .transition(.opacity.animation(.easeInOut))
             } else {
                 LoginView()
                     .environmentObject(authViewModel)
+                    .transition(.opacity.animation(.easeInOut))
             }
         }
+        .background(Color.black) // TikTok uses pure black background
     }
+}
+
+// Add preview for development
+#Preview {
+    ContentView()
 } 

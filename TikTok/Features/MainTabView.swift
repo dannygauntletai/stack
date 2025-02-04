@@ -29,19 +29,22 @@ struct MainTabView: View {
         }
         .tint(.white)
         .onAppear {
-            // Set white color for tab items
-            UITabBar.appearance().unselectedItemTintColor = .white.withAlphaComponent(0.7)
+            // Set white color for unselected items
+            UITabBar.appearance().unselectedItemTintColor = .white.withAlphaComponent(0.5)
             UITabBar.appearance().tintColor = .white
             
-            // Hide tab bar when in feed
+            // Configure tab bar appearance
             let tabBarAppearance = UITabBarAppearance()
-            if selectedTab == 0 {
-                tabBarAppearance.configureWithTransparentBackground()
-            } else {
-                tabBarAppearance.configureWithDefaultBackground()
-            }
-            UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
+            tabBarAppearance.configureWithTransparentBackground()
+            
+            // Set colors for text and icons
+            tabBarAppearance.stackedLayoutAppearance.normal.iconColor = .white.withAlphaComponent(0.5)
+            tabBarAppearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor.white.withAlphaComponent(0.5)]
+            tabBarAppearance.stackedLayoutAppearance.selected.iconColor = .white
+            tabBarAppearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor.white]
+            
             UITabBar.appearance().standardAppearance = tabBarAppearance
+            UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
         }
     }
 }

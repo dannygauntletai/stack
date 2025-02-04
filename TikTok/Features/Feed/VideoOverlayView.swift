@@ -7,9 +7,9 @@ struct VideoOverlayView: View {
     
     var body: some View {
         VStack {
-            Spacer() // Add spacer to push buttons down
+            Spacer()
             
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 // Like Button
                 Button {
                     interaction.isLiked.toggle()
@@ -17,10 +17,10 @@ struct VideoOverlayView: View {
                 } label: {
                     VStack(spacing: 4) {
                         Image(systemName: interaction.isLiked ? "heart.fill" : "heart")
-                            .font(.system(size: 28))
+                            .font(.system(size: 32))
                             .foregroundStyle(interaction.isLiked ? .red : .white)
                         Text(formatCount(interaction.likes))
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white)
                     }
                 }
@@ -29,10 +29,10 @@ struct VideoOverlayView: View {
                 Button(action: onCommentsPress) {
                     VStack(spacing: 4) {
                         Image(systemName: "message")
-                            .font(.system(size: 26))
+                            .font(.system(size: 30))
                             .foregroundStyle(.white)
                         Text(formatCount(interaction.comments))
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white)
                     }
                 }
@@ -43,15 +43,16 @@ struct VideoOverlayView: View {
                 } label: {
                     VStack(spacing: 4) {
                         Image(systemName: "plus.circle")
-                            .font(.system(size: 26))
+                            .font(.system(size: 30))
                             .foregroundStyle(.white)
                         Text("Add")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white)
                     }
                 }
             }
-            .padding(.trailing, -32) // Increased negative padding from -16 to -24
+            .padding(.bottom, 80)
+            .padding(.trailing, -32)
         }
         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
     }
