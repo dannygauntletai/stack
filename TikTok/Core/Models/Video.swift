@@ -1,18 +1,37 @@
 import Foundation
 
-struct Video: Identifiable {
+struct Video: Identifiable, Codable {
     let id: String
-    let url: URL
+    let videoUrl: String
     let caption: String
     let createdAt: Date
-    var interaction: VideoInteraction
+    let userId: String
+    var likes: Int
+    var comments: Int
+    var shares: Int
+    
+    var dictionary: [String: Any] {
+        return [
+            "id": id,
+            "videoUrl": videoUrl,
+            "caption": caption,
+            "createdAt": createdAt,
+            "userId": userId,
+            "likes": likes,
+            "comments": comments,
+            "shares": shares
+        ]
+    }
     
     // For testing purposes
     static let example = Video(
         id: UUID().uuidString,
-        url: URL(string: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4")!,
+        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
         caption: "Test video #fun",
         createdAt: Date(),
-        interaction: VideoInteraction(likes: 100, comments: 50, isLiked: false)
+        userId: UUID().uuidString,
+        likes: 100,
+        comments: 50,
+        shares: 0
     )
 } 

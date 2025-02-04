@@ -2,6 +2,10 @@ import SwiftUI
 import PhotosUI
 import AVKit
 import SafariServices
+import FirebaseStorage
+import FirebaseFirestore
+import Network
+import FirebaseAuth
 
 struct UploadView: View {
     @State private var showImagePicker = false
@@ -52,11 +56,31 @@ struct UploadView: View {
             }
             .sheet(isPresented: $showVideoPreview) {
                 if let url = selectedVideoURL {
-                    VideoPreviewView(videoURL: url)
+                    VideoPreviewView(
+                        videoURL: url,
+                        showVideoPreview: $showVideoPreview,
+                        showURLInput: $showURLInput
+                    )
                 }
             }
             .sheet(isPresented: $showURLInput) {
-                URLInputView(urlString: $urlString)
+                URLInputView(
+                    urlString: $urlString,
+                    showURLInput: $showURLInput
+                )
+            }
+            .onChange(of: showVideoPreview, initial: false) { oldValue, newValue in
+                if !newValue {
+                    // Reset state when video preview is dismissed
+                    selectedVideoURL = nil
+                    urlString = ""
+                }
+            }
+            .onChange(of: showURLInput, initial: false) { oldValue, newValue in
+                if !newValue {
+                    // Reset URL input state when dismissed
+                    urlString = ""
+                }
             }
         }
     }
@@ -114,6 +138,7 @@ struct URLInputView: View {
     @State private var errorMessage: String?
     @State private var showVideoPreview = false
     @State private var processedVideoURL: URL?
+    @Binding var showURLInput: Bool
     
     func processVideoURL() async {
         isLoading = true
@@ -203,7 +228,11 @@ struct URLInputView: View {
             }
             .sheet(isPresented: $showVideoPreview) {
                 if let url = processedVideoURL {
-                    VideoPreviewView(videoURL: url)
+                    VideoPreviewView(
+                        videoURL: url,
+                        showVideoPreview: $showVideoPreview,
+                        showURLInput: $showURLInput
+                    )
                 }
             }
         }
@@ -229,6 +258,8 @@ struct VideoPreviewView: View {
     @State private var loadError: Error?
     @State private var caption = ""
     @State private var showPostScreen = false
+    @Binding var showVideoPreview: Bool
+    @Binding var showURLInput: Bool
     
     var body: some View {
         NavigationView {
@@ -291,12 +322,17 @@ struct VideoPreviewView: View {
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $showPostScreen) {
-                PostVideoView(videoURL: videoURL, caption: caption)
+                PostVideoView(
+                    videoURL: videoURL,
+                    caption: caption,
+                    showVideoPreview: $showVideoPreview,
+                    showURLInput: $showURLInput
+                )
             }
             .task {
                 do {
-                    // Validate video
-                    let asset = AVAsset(url: videoURL)
+                    // Update to use AVURLAsset instead of AVAsset(url:)
+                    let asset = AVURLAsset(url: videoURL)
                     let duration = try await asset.load(.duration)
                     
                     // Check if it's a valid video (has duration)
@@ -324,25 +360,96 @@ struct PostVideoView: View {
     let videoURL: URL
     let caption: String
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var uploadViewModel = VideoUploadViewModel()
     @State private var isPrivate = false
+    @State private var showAlert = false
+    @State private var alertTitle = ""
+    @State private var alertMessage = ""
+    @State private var statusMessage = ""
+    @Binding var showVideoPreview: Bool
+    @Binding var showURLInput: Bool
+    @State private var uploadStatus: UploadStatus = .ready
+    
+    enum UploadStatus: Equatable {
+        case ready
+        case uploading(progress: Double)
+        case processingURL
+        case savingToFirestore
+        case completed
+        case error(String)
+        
+        var message: String {
+            switch self {
+            case .ready:
+                return "Ready to upload"
+            case .uploading(let progress):
+                return "Uploading: \(Int(progress * 100))%"
+            case .processingURL:
+                return "Processing video..."
+            case .savingToFirestore:
+                return "Saving video details..."
+            case .completed:
+                return "Upload completed!"
+            case .error(let message):
+                return "Error: \(message)"
+            }
+        }
+        
+        var isError: Bool {
+            if case .error(_) = self { return true }
+            return false
+        }
+        
+        // Add custom equality comparison
+        static func == (lhs: UploadStatus, rhs: UploadStatus) -> Bool {
+            switch (lhs, rhs) {
+            case (.ready, .ready):
+                return true
+            case (.uploading(let lhsProgress), .uploading(let rhsProgress)):
+                return lhsProgress == rhsProgress
+            case (.processingURL, .processingURL):
+                return true
+            case (.savingToFirestore, .savingToFirestore):
+                return true
+            case (.completed, .completed):
+                return true
+            case (.error(let lhsError), .error(let rhsError)):
+                return lhsError == rhsError
+            default:
+                return false
+            }
+        }
+    }
     
     var body: some View {
         NavigationView {
             Form {
-                // Thumbnail selection would go here
-                
                 Section("Details") {
                     TextField("Caption", text: .constant(caption))
                     Toggle("Private", isOn: $isPrivate)
                 }
                 
+                // Single unified upload section
                 Section {
-                    Button(action: {
-                        // TODO: Handle actual upload
-                        dismiss()
-                    }) {
-                        Text("Post")
-                            .frame(maxWidth: .infinity)
+                    Button(action: uploadVideo) {
+                        if case .uploading = uploadStatus {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                        } else {
+                            Text("Post")
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .disabled(uploadStatus != .ready)
+                    
+                    if uploadStatus != .ready {
+                        if case .uploading(let progress) = uploadStatus {
+                            ProgressView(value: progress, total: 1.0)
+                                .progressViewStyle(.linear)
+                        }
+                        Text(uploadStatus.message)
+                            .font(.footnote)
+                            .foregroundColor(uploadStatus.isError ? .red : .secondary)
                     }
                 }
             }
@@ -353,9 +460,51 @@ struct PostVideoView: View {
                     Button("Back") {
                         dismiss()
                     }
+                    .disabled(!matches(uploadStatus, [.ready, .completed]))
+                }
+            }
+            .onChange(of: uploadStatus, initial: false) { oldValue, newValue in
+                if case .completed = newValue {
+                    print("DEBUG: Upload completed, preparing to dismiss")
+                    alertTitle = "Success"
+                    alertMessage = "Your video has been uploaded successfully!"
+                    showAlert = true
+                }
+            }
+            .alert(alertTitle, isPresented: $showAlert) {
+                Button("OK") {
+                    if case .completed = uploadStatus {
+                        print("DEBUG: Alert OK tapped, starting dismissal chain")
+                        // Dismiss all views in sequence
+                        dismiss() // Dismiss PostVideoView
+                        showVideoPreview = false // Direct binding assignment
+                        showURLInput = false // Direct binding assignment
+                    }
+                }
+            } message: {
+                Text(alertMessage)
+            }
+        }
+    }
+    
+    private func uploadVideo() {
+        uploadStatus = .uploading(progress: 0)
+        
+        uploadViewModel.uploadVideo(url: videoURL, caption: caption) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    uploadStatus = .completed
+                case .failure(let error):
+                    uploadStatus = .error(error.localizedDescription)
                 }
             }
         }
+    }
+    
+    // Helper function to check if status matches any of the allowed states
+    private func matches(_ status: UploadStatus, _ allowed: [UploadStatus]) -> Bool {
+        return allowed.contains { $0 == status }
     }
 }
 
@@ -445,6 +594,165 @@ struct MediaPickerView: UIViewControllerRepresentable {
                         self.parent.dismiss()
                     }
                 }
+            }
+        }
+    }
+}
+
+class VideoUploadViewModel: ObservableObject {
+    @Published var isUploading = false
+    @Published var uploadProgress: Double = 0
+    @Published var errorMessage: String?
+    @Published var statusMessage: String = ""
+    
+    private let storage = Storage.storage()
+    private let db = Firestore.firestore()
+    private var currentUploadTask: StorageUploadTask?
+    private let monitor = NWPathMonitor()
+    private var isNetworkAvailable = true
+    
+    init() {
+        // Setup network monitoring
+        monitor.pathUpdateHandler = { [weak self] path in
+            self?.isNetworkAvailable = path.status == .satisfied
+        }
+        monitor.start(queue: DispatchQueue.global())
+    }
+    
+    deinit {
+        monitor.cancel()
+    }
+    
+    func uploadVideo(url: URL, caption: String, completion: @escaping (Result<Video, Error>) -> Void) {
+        // Check if user is authenticated
+        guard let currentUser = Auth.auth().currentUser else {
+            let error = NSError(domain: "", code: -1, 
+                userInfo: [NSLocalizedDescriptionKey: "User must be logged in to upload videos"])
+            completion(.failure(error))
+            return
+        }
+        
+        // Prevent multiple simultaneous uploads
+        guard !isUploading else { return }
+        
+        // Cancel any existing upload
+        currentUploadTask?.cancel()
+        
+        isUploading = true
+        uploadProgress = 0
+        
+        // Check network connectivity
+        guard isNetworkAvailable else {
+            DispatchQueue.main.async {
+                self.isUploading = false
+                let error = NSError(domain: "", code: -1, 
+                    userInfo: [NSLocalizedDescriptionKey: "No internet connection. Please check your network and try again."])
+                completion(.failure(error))
+            }
+            return
+        }
+        
+        // Create a unique filename
+        let filename = "\(UUID().uuidString).mp4"
+        let storageRef = storage.reference().child("videos/\(filename)")
+        
+        // Create metadata
+        let metadata = StorageMetadata()
+        metadata.contentType = "video/mp4"
+        
+        // Upload the file
+        currentUploadTask = storageRef.putFile(from: url, metadata: metadata)
+        
+        statusMessage = "Preparing upload..."
+        
+        currentUploadTask?.observe(.progress) { [weak self] snapshot in
+            let percentComplete = Double(snapshot.progress?.completedUnitCount ?? 0) / 
+                Double(snapshot.progress?.totalUnitCount ?? 1)
+            DispatchQueue.main.async {
+                self?.uploadProgress = percentComplete
+                self?.statusMessage = "Uploading: \(Int(percentComplete * 100))%"
+            }
+        }
+        
+        currentUploadTask?.observe(.success) { [weak self] _ in
+            print("DEBUG: Storage upload completed successfully")
+            
+            storageRef.downloadURL { url, error in
+                if let error = error {
+                    print("DEBUG: Failed to get download URL: \(error.localizedDescription)")
+                    DispatchQueue.main.async {
+                        self?.isUploading = false
+                        completion(.failure(error))
+                    }
+                    return
+                }
+                
+                guard let downloadURL = url?.absoluteString else {
+                    print("DEBUG: Download URL was nil")
+                    let error = NSError(domain: "", code: -1, 
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to get download URL"])
+                    completion(.failure(error))
+                    return
+                }
+                
+                print("DEBUG: Got download URL: \(downloadURL)")
+                
+                // Create video document with userId
+                let video = Video(
+                    id: UUID().uuidString,
+                    videoUrl: downloadURL,
+                    caption: caption,
+                    createdAt: Date(),
+                    userId: currentUser.uid,
+                    likes: 0,
+                    comments: 0,
+                    shares: 0
+                )
+                
+                // Since the video is uploaded successfully, we can consider this a success
+                DispatchQueue.main.async {
+                    self?.isUploading = false
+                    completion(.success(video))
+                }
+                
+                // Try to save to Firestore, but don't block the UI on it
+                self?.db.collection("videos").document(video.id).setData(video.dictionary) { error in
+                    if let error = error {
+                        print("DEBUG: Firestore save failed: \(error.localizedDescription)")
+                    } else {
+                        print("DEBUG: Firestore save completed successfully")
+                    }
+                }
+            }
+        }
+        
+        currentUploadTask?.observe(.failure) { [weak self] snapshot in
+            DispatchQueue.main.async {
+                self?.isUploading = false
+                if let error = snapshot.error {
+                    let message = (error as NSError).domain == NSURLErrorDomain 
+                        ? "Network error. Please check your connection and try again."
+                        : error.localizedDescription
+                    self?.statusMessage = "Error: \(message)"
+                    self?.errorMessage = message
+                    completion(.failure(error))
+                }
+            }
+        }
+    }
+    
+    func cancelUpload() {
+        currentUploadTask?.cancel()
+        isUploading = false
+        uploadProgress = 0
+    }
+    
+    func testFirestoreConnection() {
+        db.collection("videos").limit(to: 1).getDocuments { snapshot, error in
+            if let error = error {
+                print("DEBUG: Firestore connection test failed: \(error.localizedDescription)")
+            } else {
+                print("DEBUG: Firestore connection test successful")
             }
         }
     }
