@@ -6,6 +6,7 @@ struct FeedView: View {
     @State private var currentInteraction = VideoInteraction(likes: Int.random(in: 100...10000), 
                                                            comments: Int.random(in: 50...500), 
                                                            isLiked: false)
+    @State private var showComments = false
     
     var body: some View {
         ZStack(alignment: .trailing) {
@@ -39,16 +40,21 @@ struct FeedView: View {
             if !viewModel.videos.isEmpty {
                 VideoOverlayView(
                     video: viewModel.videos[safe: currentIndex] ?? viewModel.videos[0],
-                    interaction: $currentInteraction
+                    interaction: $currentInteraction,
+                    onCommentsPress: { showComments = true }
                 )
-                .frame(width: 80) // Smaller width
+                .frame(width: 80)
                 .padding(.trailing, 12)
-                .padding(.bottom, 140) // Move up from bottom
+                .padding(.bottom, 140)
             }
         }
         .ignoresSafeArea()
         .statusBar(hidden: true)
         .background(Color.black)
+        .sheet(isPresented: $showComments) {
+            CommentsSheet()
+            .presentationDetents([.medium, .large])
+        }
         .task {
             await viewModel.fetchVideos()
         }
