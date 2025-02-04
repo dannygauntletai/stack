@@ -157,15 +157,41 @@ struct VideoThumbnail: View {
     var body: some View {
         ZStack {
             if let url = thumbnailURL {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .scaledToFill()
-                } placeholder: {
-                    placeholderView
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .onAppear { print("DEBUG: Successfully loaded thumbnail for video \(video.id)") }
+                    case .failure(let error):
+                        placeholderView
+                            .overlay {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundColor(.white)
+                            }
+                            .onAppear {
+                                print("DEBUG: Failed to load thumbnail for video \(video.id)")
+                                print("DEBUG: Error: \(error.localizedDescription)")
+                                print("DEBUG: URL attempted: \(url.absoluteString)")
+                            }
+                    case .empty:
+                        placeholderView
+                            .overlay {
+                                ProgressView()
+                                    .tint(.white)
+                            }
+                            .onAppear { print("DEBUG: Loading thumbnail for video \(video.id)") }
+                    @unknown default:
+                        placeholderView
+                    }
                 }
             } else {
                 placeholderView
+                    .onAppear {
+                        print("DEBUG: No thumbnail URL for video \(video.id)")
+                        print("DEBUG: Raw thumbnailUrl value: \(String(describing: video.thumbnailUrl))")
+                    }
             }
         }
         .frame(width: UIScreen.main.bounds.width / 3, height: UIScreen.main.bounds.width / 3)
@@ -173,13 +199,18 @@ struct VideoThumbnail: View {
         .onTapGesture {
             showVideo = true
         }
-        .task {
-            // If no thumbnail, try to generate one
-            if video.thumbnailUrl == nil {
-                await ThumbnailManager.shared.ensureThumbnail(for: video)
-            }
+        .onAppear {
+            print("DEBUG: VideoThumbnail appeared for video \(video.id)")
             if let urlString = video.thumbnailUrl {
-                thumbnailURL = URL(string: urlString)
+                print("DEBUG: Found URL string: \(urlString)")
+                if let url = URL(string: urlString) {
+                    print("DEBUG: Successfully created URL: \(url.absoluteString)")
+                    self.thumbnailURL = url
+                } else {
+                    print("DEBUG: Failed to create URL from string: \(urlString)")
+                }
+            } else {
+                print("DEBUG: No thumbnailUrl found for video \(video.id)")
             }
         }
         .fullScreenCover(isPresented: $showVideo) {

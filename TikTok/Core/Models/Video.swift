@@ -12,7 +12,7 @@ struct Video: Identifiable {
     var thumbnailUrl: String?  // Optional thumbnail URL
     
     var dictionary: [String: Any] {
-        return [
+        var dict: [String: Any] = [
             "id": id,
             "videoUrl": videoUrl,
             "caption": caption,
@@ -22,6 +22,13 @@ struct Video: Identifiable {
             "comments": comments,
             "shares": shares
         ]
+        
+        // Make sure thumbnailUrl is included when present
+        if let thumbnailUrl = thumbnailUrl {
+            dict["thumbnailUrl"] = thumbnailUrl
+        }
+        
+        return dict
     }
     
     // For testing purposes

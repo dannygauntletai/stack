@@ -27,6 +27,8 @@ class ProfileViewModel: ObservableObject {
                       let shares = document.get("shares") as? Int
                 else { return nil }
                 
+                let thumbnailUrl = document.get("thumbnailUrl") as? String
+                
                 return Video(
                     id: document.documentID,
                     videoUrl: videoUrl,
@@ -35,7 +37,8 @@ class ProfileViewModel: ObservableObject {
                     userId: userId,
                     likes: likes,
                     comments: comments,
-                    shares: shares
+                    shares: shares,
+                    thumbnailUrl: thumbnailUrl
                 )
             }
             
@@ -59,6 +62,8 @@ class ProfileViewModel: ObservableObject {
                    let comments = doc.get("comments") as? Int,
                    let shares = doc.get("shares") as? Int {
                     
+                    let thumbnailUrl = doc.get("thumbnailUrl") as? String
+                    
                     let video = Video(
                         id: doc.documentID,
                         videoUrl: videoUrl,
@@ -67,7 +72,8 @@ class ProfileViewModel: ObservableObject {
                         userId: userId,
                         likes: likes,
                         comments: comments,
-                        shares: shares
+                        shares: shares,
+                        thumbnailUrl: thumbnailUrl
                     )
                     likedVideos.append(video)
                 }

@@ -41,57 +41,83 @@ class VideoUploadViewModel: ObservableObject {
         
         guard !isUploading else { return }
         
-        let storageRef = storage.reference().child("videos/\(UUID().uuidString).mp4")
+        // Generate thumbnail first from local URL
+        guard let thumbnail = generateThumbnail(from: url) else {
+            let error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to generate thumbnail"])
+            handleError(error, completion: completion)
+            return
+        }
+        
+        let videoId = UUID().uuidString  // Generate ID once and reuse
+        let storageRef = storage.reference().child("videos/\(videoId).mp4")
         let metadata = StorageMetadata()
         metadata.contentType = "video/mp4"
         
-        currentUploadTask = storageRef.putFile(from: url, metadata: metadata)
-        
-        let taskReference = currentUploadTask
-        taskReference?.observe(.resume) { [weak self] _ in
-            self?.isUploading = true
-        }
-        
-        taskReference?.observe(.progress) { [weak self] snapshot in
-            let percentComplete = Double(snapshot.progress?.completedUnitCount ?? 0) / 
-                Double(snapshot.progress?.totalUnitCount ?? 1)
-            DispatchQueue.main.async {
-                self?.uploadProgress = percentComplete
-                self?.uploadStatus = .uploading(progress: percentComplete)
-            }
-        }
-        
-        taskReference?.observe(.success) { [weak self] _ in
-            storageRef.downloadURL { [weak self] url, error in
-                DispatchQueue.main.async {
-                    if let error = error {
-                        self?.handleError(error, completion: completion)
-                        return
-                    }
-                    
-                    guard let downloadURL = url?.absoluteString else {
-                        let error = NSError(domain: "", code: -1, 
-                            userInfo: [NSLocalizedDescriptionKey: "Failed to get download URL"])
-                        self?.handleError(error, completion: completion)
-                        return
-                    }
-                    
-                    self?.uploadStatus = .savingToFirestore(attempt: 1)
-                    self?.saveToFirestore(downloadURL: downloadURL, caption: caption, userId: currentUser.uid, completion: completion)
+        // Start parallel upload of video and thumbnail
+        Task { @MainActor in
+            do {
+                // Upload thumbnail first and get URL
+                let thumbnailURL = try await uploadThumbnail(for: videoId, image: thumbnail)
+                
+                // Continue with video upload...
+                currentUploadTask = storageRef.putFile(from: url, metadata: metadata)
+                
+                let taskReference = currentUploadTask
+                taskReference?.observe(.resume) { [weak self] _ in
+                    self?.isUploading = true
                 }
-            }
-        }
-        
-        taskReference?.observe(.failure) { [weak self] snapshot in
-            DispatchQueue.main.async {
-                if let error = snapshot.error {
-                    self?.handleError(error, completion: completion)
+                
+                taskReference?.observe(.progress) { [weak self] snapshot in
+                    let percentComplete = Double(snapshot.progress?.completedUnitCount ?? 0) / 
+                        Double(snapshot.progress?.totalUnitCount ?? 1)
+                    DispatchQueue.main.async {
+                        self?.uploadProgress = percentComplete
+                        self?.uploadStatus = .uploading(progress: percentComplete)
+                    }
                 }
+                
+                taskReference?.observe(.success) { [weak self] _ in
+                    storageRef.downloadURL { [weak self] url, error in
+                        DispatchQueue.main.async {
+                            if let error = error {
+                                self?.handleError(error, completion: completion)
+                                return
+                            }
+                            
+                            guard let downloadURL = url?.absoluteString else {
+                                let error = NSError(domain: "", code: -1, 
+                                    userInfo: [NSLocalizedDescriptionKey: "Failed to get download URL"])
+                                self?.handleError(error, completion: completion)
+                                return
+                            }
+                            
+                            self?.uploadStatus = .savingToFirestore(attempt: 1)
+                            self?.saveToFirestore(
+                                videoId: videoId,
+                                videoURL: downloadURL,
+                                thumbnailURL: thumbnailURL,  // Pass the thumbnail URL
+                                caption: caption,
+                                userId: currentUser.uid,
+                                completion: completion
+                            )
+                        }
+                    }
+                }
+                
+                taskReference?.observe(.failure) { [weak self] snapshot in
+                    DispatchQueue.main.async {
+                        if let error = snapshot.error {
+                            self?.handleError(error, completion: completion)
+                        }
+                    }
+                }
+                
+                isUploading = true
+                uploadStatus = .uploading(progress: 0)
+            } catch {
+                handleError(error, completion: completion)
             }
         }
-        
-        isUploading = true
-        uploadStatus = .uploading(progress: 0)
     }
     
     private func handleError(_ error: Error, completion: @escaping (Result<Video, Error>) -> Void) {
@@ -115,7 +141,10 @@ class VideoUploadViewModel: ObservableObject {
     }
     
     private func uploadThumbnail(for videoId: String, image: UIImage) async throws -> String {
+        print("DEBUG: Starting thumbnail upload for video: \(videoId)")
+        
         guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+            print("DEBUG: Failed to convert thumbnail to JPEG")
             throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to data"])
         }
         
@@ -123,85 +152,69 @@ class VideoUploadViewModel: ObservableObject {
         let metadata = StorageMetadata()
         metadata.contentType = "image/jpeg"
         
-        _ = try await thumbnailRef.putDataAsync(imageData, metadata: metadata)
-        let downloadURL = try await thumbnailRef.downloadURL()
-        return downloadURL.absoluteString
+        do {
+            print("DEBUG: Uploading thumbnail data...")
+            _ = try await thumbnailRef.putDataAsync(imageData, metadata: metadata)
+            print("DEBUG: Getting thumbnail download URL...")
+            let downloadURL = try await thumbnailRef.downloadURL()
+            print("DEBUG: Thumbnail upload complete. URL: \(downloadURL.absoluteString)")
+            return downloadURL.absoluteString
+        } catch {
+            print("DEBUG: Thumbnail upload failed with error: \(error.localizedDescription)")
+            throw error
+        }
     }
     
-    private func saveToFirestore(downloadURL: String, caption: String, userId: String, completion: @escaping (Result<Video, Error>) -> Void) {
-        DispatchQueue.main.async {
-            self.uploadStatus = .savingToFirestore(attempt: 1)
-        }
+    private func saveToFirestore(
+        videoId: String,
+        videoURL: String,
+        thumbnailURL: String,
+        caption: String,
+        userId: String,
+        completion: @escaping (Result<Video, Error>) -> Void
+    ) {
+        print("DEBUG: Saving to Firestore with thumbnail URL: \(thumbnailURL)")
         
-        // Generate thumbnail from the original upload URL
-        Task {
-            do {
-                // First get the original video URL
-                guard let originalURL = currentUploadTask?.snapshot.reference.description,
-                      let videoURL = URL(string: originalURL) else {
-                    throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid video URL"])
-                }
+        let video = Video(
+            id: videoId,
+            videoUrl: videoURL,
+            caption: caption,
+            createdAt: Date(),
+            userId: userId,
+            likes: 0,
+            comments: 0,
+            shares: 0,
+            thumbnailUrl: thumbnailURL
+        )
+        
+        print("DEBUG: Video dictionary: \(video.dictionary)")
+        
+        let docRef = db.collection("videos").document(video.id)
+        
+        docRef.setData(video.dictionary) { [weak self] (error: Error?) in
+            guard let self = self else { return }
+            
+            docRef.getDocument { [weak self] (snapshot: DocumentSnapshot?, verifyError: Error?) in
+                guard let self = self else { return }
                 
-                // Generate and upload thumbnail
-                guard let thumbnail = generateThumbnail(from: videoURL) else {
-                    throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to generate thumbnail"])
-                }
-                
-                let thumbnailURL = try await uploadThumbnail(for: UUID().uuidString, image: thumbnail)
-                
-                let video = Video(
-                    id: UUID().uuidString,
-                    videoUrl: downloadURL,
-                    caption: caption,
-                    createdAt: Date(),
-                    userId: userId,
-                    likes: 0,
-                    comments: 0,
-                    shares: 0
-                )
-                
-                let videoData: [String: Any] = [
-                    "id": video.id,
-                    "videoUrl": video.videoUrl,
-                    "caption": caption,
-                    "createdAt": Timestamp(date: video.createdAt),
-                    "userId": video.userId,
-                    "likes": video.likes,
-                    "comments": video.comments,
-                    "shares": video.shares,
-                    "thumbnailUrl": thumbnailURL
-                ]
-                
-                let docRef = db.collection("videos").document(video.id)
-                
-                docRef.setData(videoData) { [weak self] (error: Error?) in
-                    guard let self = self else { return }
-                    
-                    docRef.getDocument { [weak self] (snapshot: DocumentSnapshot?, verifyError: Error?) in
-                        guard let self = self else { return }
-                        
-                        DispatchQueue.main.async {
-                            if let error = error ?? verifyError {
-                                self.handleError(error, completion: completion)
-                                return
-                            }
-                            
-                            guard let exists = snapshot?.exists, exists else {
-                                self.handleError(NSError(domain: "", code: -1, 
-                                    userInfo: [NSLocalizedDescriptionKey: "Write verification failed"]), 
-                                    completion: completion)
-                                return
-                            }
-                            
-                            self.isUploading = false
-                            self.uploadStatus = .completed
-                            completion(.success(video))
-                            self.uploadComplete = true
-                        }
+                DispatchQueue.main.async {
+                    if let error = error ?? verifyError {
+                        self.handleError(error, completion: completion)
+                        return
                     }
+                    
+                    guard let exists = snapshot?.exists, exists else {
+                        self.handleError(NSError(domain: "", code: -1, 
+                            userInfo: [NSLocalizedDescriptionKey: "Write verification failed"]), 
+                            completion: completion)
+                        return
+                    }
+                    
+                    self.isUploading = false
+                    self.uploadStatus = .completed
+                    completion(.success(video))
+                    self.uploadComplete = true
                 }
-            } catch {
-                completion(.failure(error))
             }
         }
     }
