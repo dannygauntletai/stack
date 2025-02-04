@@ -99,7 +99,7 @@ struct ProfileView: View {
                         Button(role: .destructive, action: {
                             authViewModel.signOut()
                         }) {
-                            Label("Log out", systemImage: "rectangle.portrait.and.arrow.right")
+                            Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
                         }
                     } label: {
                         Image(systemName: "ellipsis")
