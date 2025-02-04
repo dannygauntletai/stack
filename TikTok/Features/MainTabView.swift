@@ -8,24 +8,21 @@ struct MainTabView: View {
         TabView(selection: $selectedTab) {
             FeedView()
                 .tabItem {
-                    Image(systemName: "house")
-                        .environment(\.symbolVariants, .none)
+                    Image(systemName: selectedTab == 0 ? "house.fill" : "house")
                     Text("Home")
                 }
                 .tag(0)
             
-            Text("Upload") // Placeholder for upload view
+            Text("Upload")
                 .tabItem {
-                    Image(systemName: "plus.square")
-                        .environment(\.symbolVariants, .none)
+                    Image(systemName: selectedTab == 1 ? "plus.square.fill" : "plus.square")
                     Text("Upload")
                 }
                 .tag(1)
             
             ProfileView()
                 .tabItem {
-                    Image(systemName: "person")
-                        .environment(\.symbolVariants, .none)
+                    Image(systemName: selectedTab == 2 ? "person.fill" : "person")
                     Text("Profile")
                 }
                 .tag(2)
@@ -33,7 +30,7 @@ struct MainTabView: View {
         .tint(.white)
         .onAppear {
             // Set white color for tab items
-            UITabBar.appearance().unselectedItemTintColor = .white
+            UITabBar.appearance().unselectedItemTintColor = .white.withAlphaComponent(0.7)
             UITabBar.appearance().tintColor = .white
             
             // Hide tab bar when in feed
