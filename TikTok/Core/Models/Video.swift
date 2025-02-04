@@ -1,14 +1,14 @@
 import Foundation
 
-struct Video: Identifiable, Codable {
+struct Video: Identifiable {
     let id: String
     let videoUrl: String
     let caption: String
     let createdAt: Date
     let userId: String
-    var likes: Int
-    var comments: Int
-    var shares: Int
+    let likes: Int
+    let comments: Int
+    let shares: Int
     
     var dictionary: [String: Any] {
         return [

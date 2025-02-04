@@ -26,7 +26,7 @@ struct FeedView: View {
                 .rotationEffect(.degrees(90), anchor: .topLeading)
                 .offset(x: geometry.size.width)
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                .onChange(of: currentIndex) { _ in
+                .onChange(of: currentIndex) { oldValue, newValue in
                     // Update interaction stats when video changes
                     currentInteraction = VideoInteraction(
                         likes: Int.random(in: 100...10000),
