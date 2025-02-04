@@ -2,20 +2,34 @@ import SwiftUI
 
 struct MainTabView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
+    @State private var selectedTab = 0
     
     var body: some View {
-        TabView {
-            Text("Home")
+        TabView(selection: $selectedTab) {
+            FeedView()
                 .tabItem {
                     Image(systemName: "house")
                     Text("Home")
                 }
+                .tag(0)
             
             ProfileView()
                 .tabItem {
                     Image(systemName: "person")
                     Text("Profile")
                 }
+                .tag(1)
+        }
+        .onAppear {
+            // Hide tab bar when in feed
+            let tabBarAppearance = UITabBarAppearance()
+            if selectedTab == 0 {
+                tabBarAppearance.configureWithTransparentBackground()
+            } else {
+                tabBarAppearance.configureWithDefaultBackground()
+            }
+            UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
+            UITabBar.appearance().standardAppearance = tabBarAppearance
         }
     }
 }
