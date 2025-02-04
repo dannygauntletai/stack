@@ -44,7 +44,7 @@ struct FeedView: View {
                     onCommentsPress: { showComments = true }
                 )
                 .frame(width: 80)
-                .padding(.trailing, 12)
+                .padding(.trailing, 8)
                 .padding(.bottom, 140)
             }
         }
