@@ -5,16 +5,10 @@ struct VideoPlayerView: View {
     let video: Video
     @State private var player: AVPlayer?
     @State private var isLoading = true
-    @State private var interaction: VideoInteraction
-    
-    init(video: Video) {
-        self.video = video
-        self._interaction = State(initialValue: video.interaction)
-    }
     
     var body: some View {
         GeometryReader { geometry in
-            ZStack(alignment: .bottomTrailing) {
+            ZStack {
                 if let player = player {
                     VideoPlayer(player: player)
                         .ignoresSafeArea(edges: .all)
@@ -26,9 +20,6 @@ struct VideoPlayerView: View {
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(1.5)
                 }
-                
-                VideoOverlayView(video: video, interaction: $interaction)
-                    .allowsHitTesting(true)
             }
         }
         .background(Color.black)
