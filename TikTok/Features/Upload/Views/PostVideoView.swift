@@ -248,16 +248,11 @@ struct PostVideoView: View {
         }
         .onChange(of: viewModel.uploadComplete) { completed in
             if completed {
-                print("DEBUG: Upload complete, starting dismissal sequence")
-                // Add slight delay to ensure state updates are complete
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    print("DEBUG: Executing cleanup and dismiss")
-                    cleanupAndDismiss()
-                }
+                cleanupAndDismiss()
             }
         }
         .onChange(of: viewModel.uploadStatus) { status in
-            print("DEBUG: Upload status changed to: \(status)")
+            uploadStatus = status
         }
         .overlay {
             if viewModel.isUploading {
@@ -272,8 +267,6 @@ struct PostVideoView: View {
     }
     
     private func cleanupAndDismiss() {
-        print("DEBUG: Starting cleanup")
-        
         // Stop video playback first
         if let player = player {
             NotificationCenter.default.removeObserver(self, 
@@ -283,33 +276,24 @@ struct PostVideoView: View {
             self.player = nil
         }
         
-        print("DEBUG: Player cleanup complete")
-        
         // Clean up other resources
         cancellables.removeAll()
         
-        print("DEBUG: Starting view dismissal")
-        
-        // Dismiss in sequence with slight delays
+        // Dismiss in sequence
         showURLInput = false
-        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            print("DEBUG: Calling final dismiss")
             dismiss()
         }
     }
     
     private func uploadVideo() {
-        print("DEBUG: Starting upload in PostVideoView")
         showUploadStatus = true
         
         viewModel.uploadVideo(url: videoURL, caption: caption) { result in
-            print("DEBUG: Upload completion handler called with result: \(result)")
             switch result {
-            case .success(let video):
-                print("DEBUG: Upload succeeded for video: \(video.id)")
+            case .success:
+                break // View will be dismissed by uploadComplete onChange
             case .failure(let error):
-                print("DEBUG: Upload failed with error: \(error.localizedDescription)")
                 alertTitle = "Upload Failed"
                 alertMessage = """
                     Error: \(error.localizedDescription)
