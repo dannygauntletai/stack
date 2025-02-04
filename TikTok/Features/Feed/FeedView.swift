@@ -51,8 +51,16 @@ struct FeedView: View {
         .statusBar(hidden: true)
         .background(Color.black)
         .sheet(isPresented: $showComments) {
-            CommentsSheet()
-                .presentationDetents([.medium, .large])
+            CommentsSheet(
+                video: viewModel.videos[currentIndex]
+            ) { [video = viewModel.videos[currentIndex]] in
+                // Update both the interaction state and the video model
+                if let index = viewModel.videos.firstIndex(where: { $0.id == video.id }) {
+                    viewModel.videos[index].comments += 1
+                    currentInteraction.comments = viewModel.videos[index].comments
+                }
+            }
+            .presentationDetents([.medium, .large])
         }
         .onChange(of: currentIndex) { _, newValue in
             updateInteractionState(for: newValue)
