@@ -24,7 +24,7 @@ struct CommentsSheet: View {
                     ScrollView {
                         LazyVStack(spacing: 16) {
                             ForEach(viewModel.comments) { comment in
-                                CommentRow(comment: comment)
+                                CommentRow(comment: comment, viewModel: viewModel)
                             }
                         }
                         .padding()
@@ -80,11 +80,85 @@ class CommentsViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: Error?
     @Published var commentAdded = false
+    @Published var likedCommentIds: Set<String> = []  // Track liked comments
     private let db = Firestore.firestore()
     let onCommentAdded: () -> Void
     
     init(onCommentAdded: @escaping () -> Void = {}) {
         self.onCommentAdded = onCommentAdded
+        Task {
+            await fetchLikedComments()
+        }
+    }
+    
+    private func fetchLikedComments() async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        do {
+            let snapshot = try await db.collection("users")
+                .document(userId)
+                .collection("liked_comments")
+                .getDocuments()
+            
+            likedCommentIds = Set(snapshot.documents.map { $0.documentID })
+        } catch {
+            print("Error fetching liked comments: \(error)")
+        }
+    }
+    
+    func toggleCommentLike(comment: Comment) async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        let isLiked = likedCommentIds.contains(comment.id)
+        let increment = isLiked ? -1 : 1
+        
+        do {
+            let batch = db.batch()
+            
+            // Update comment likes count
+            let commentRef = db.collection("videos")
+                .document(comment.videoId)
+                .collection("comments")
+                .document(comment.id)
+            
+            batch.updateData([
+                "likes": FieldValue.increment(Int64(increment))
+            ], forDocument: commentRef)
+            
+            // Update user's liked comments
+            let userLikeRef = db.collection("users")
+                .document(userId)
+                .collection("liked_comments")
+                .document(comment.id)
+            
+            if isLiked {
+                batch.deleteDocument(userLikeRef)
+                likedCommentIds.remove(comment.id)
+            } else {
+                batch.setData([
+                    "timestamp": FieldValue.serverTimestamp(),
+                    "videoId": comment.videoId
+                ], forDocument: userLikeRef)
+                likedCommentIds.insert(comment.id)
+            }
+            
+            try await batch.commit()
+            
+            // Update local state
+            if let index = comments.firstIndex(where: { $0.id == comment.id }) {
+                var updatedComment = comments[index]
+                updatedComment.likes += increment
+                comments[index] = updatedComment
+            }
+        } catch {
+            print("Error toggling comment like: \(error)")
+            // Revert local state if server update fails
+            if isLiked {
+                likedCommentIds.insert(comment.id)
+            } else {
+                likedCommentIds.remove(comment.id)
+            }
+        }
     }
     
     func fetchComments(for videoId: String) async {
@@ -178,6 +252,7 @@ class CommentsViewModel: ObservableObject {
 
 struct CommentRow: View {
     let comment: Comment
+    @ObservedObject var viewModel: CommentsViewModel
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -214,12 +289,19 @@ struct CommentRow: View {
             
             Spacer()
             
-            // Like button with correct sizing
-            VStack(spacing: 4) {
-                Image(systemName: "heart")
-                    .font(.system(size: 24))
-                Text("\(comment.likes)")
-                    .font(.system(size: 12))
+            // Like button with interaction
+            Button {
+                Task {
+                    await viewModel.toggleCommentLike(comment: comment)
+                }
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: viewModel.likedCommentIds.contains(comment.id) ? "heart.fill" : "heart")
+                        .font(.system(size: 24))
+                        .foregroundStyle(viewModel.likedCommentIds.contains(comment.id) ? .red : .gray)
+                    Text("\(comment.likes)")
+                        .font(.system(size: 12))
+                }
             }
             .foregroundStyle(.gray)
         }
