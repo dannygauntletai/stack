@@ -41,26 +41,28 @@ class VideoUploadViewModel: ObservableObject {
         
         guard !isUploading else { return }
         
-        // Generate thumbnail first from local URL
-        guard let thumbnail = generateThumbnail(from: url) else {
-            let error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to generate thumbnail"])
-            handleError(error, completion: completion)
-            return
-        }
-        
-        let videoId = UUID().uuidString  // Generate ID once and reuse
-        let storageRef = storage.reference().child("videos/\(videoId).mp4")
-        let metadata = StorageMetadata()
-        metadata.contentType = "video/mp4"
-        
-        // Start parallel upload of video and thumbnail
-        Task { @MainActor in
+        Task {
             do {
-                // Upload thumbnail first and get URL
+                // Generate thumbnail from original video first
+                guard let thumbnail = generateThumbnail(from: url) else {
+                    let error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to generate thumbnail"])
+                    handleError(error, completion: completion)
+                    return
+                }
+                
+                // Then rotate the video
+                let rotatedVideoURL = try await rotateVideo(url: url)
+                
+                let videoId = UUID().uuidString
+                
+                // Upload thumbnail
                 let thumbnailURL = try await uploadThumbnail(for: videoId, image: thumbnail)
                 
-                // Continue with video upload...
-                currentUploadTask = storageRef.putFile(from: url, metadata: metadata)
+                let storageRef = storage.reference().child("videos/\(videoId).mp4")
+                let metadata = StorageMetadata()
+                metadata.contentType = "video/mp4"
+                
+                currentUploadTask = storageRef.putFile(from: rotatedVideoURL, metadata: metadata)
                 
                 let taskReference = currentUploadTask
                 taskReference?.observe(.resume) { [weak self] _ in
@@ -95,7 +97,7 @@ class VideoUploadViewModel: ObservableObject {
                             self?.saveToFirestore(
                                 videoId: videoId,
                                 videoURL: downloadURL,
-                                thumbnailURL: thumbnailURL,  // Pass the thumbnail URL
+                                thumbnailURL: thumbnailURL,
                                 caption: caption,
                                 userId: currentUser.uid,
                                 completion: completion
@@ -115,7 +117,9 @@ class VideoUploadViewModel: ObservableObject {
                 isUploading = true
                 uploadStatus = .uploading(progress: 0)
             } catch {
-                handleError(error, completion: completion)
+                await MainActor.run {
+                    handleError(error, completion: completion)
+                }
             }
         }
     }
@@ -133,7 +137,27 @@ class VideoUploadViewModel: ObservableObject {
         
         do {
             let cgImage = try imageGenerator.copyCGImage(at: .zero, actualTime: nil)
-            return UIImage(cgImage: cgImage)
+            let image = UIImage(cgImage: cgImage)
+            
+            // Rotate the thumbnail 180 degrees to compensate for video rotation
+            let rotatedSize = CGSize(width: image.size.width, height: image.size.height) // Size stays same for 180
+            UIGraphicsBeginImageContextWithOptions(rotatedSize, false, image.scale)
+            let context = UIGraphicsGetCurrentContext()!
+            
+            // Translate and rotate
+            context.translateBy(x: rotatedSize.width/2, y: rotatedSize.height/2)
+            context.rotate(by: 2 * .pi)  // 360 degrees (keep this)
+            image.draw(in: CGRect(
+                x: -image.size.width/2,
+                y: -image.size.height/2,
+                width: image.size.width,
+                height: image.size.height
+            ))
+            
+            let rotatedImage = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+            
+            return rotatedImage
         } catch {
             print("Error generating thumbnail: \(error)")
             return nil
@@ -213,5 +237,70 @@ class VideoUploadViewModel: ObservableObject {
         isUploading = false
         uploadStatus = .ready
         uploadProgress = 0
+    }
+    
+    func rotateVideo(url: URL) async throws -> URL {
+        let asset = AVAsset(url: url)
+        
+        // Create composition
+        let composition = AVMutableComposition()
+        let compositionVideoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        )
+        
+        // Get source video track
+        let videoTrack = try await asset.loadTracks(withMediaType: .video).first!
+        
+        // Add video track to composition
+        try compositionVideoTrack?.insertTimeRange(
+            CMTimeRange(start: .zero, duration: try await asset.load(.duration)),
+            of: videoTrack,
+            at: .zero
+        )
+        
+        // Get current transform and add -90 degrees rotation
+        let currentTransform = videoTrack.preferredTransform
+        let newTransform = currentTransform.rotated(by: -.pi/2)  // back to -90 degrees
+        
+        // Apply combined transform
+        compositionVideoTrack?.preferredTransform = newTransform
+        
+        // Export with better configuration
+        guard let exportSession = AVAssetExportSession(
+            asset: composition,
+            presetName: AVAssetExportPresetPassthrough // Use passthrough to maintain quality
+        ) else {
+            throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not create export session"])
+        }
+        
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("mp4")
+        
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mp4
+        exportSession.shouldOptimizeForNetworkUse = true
+        
+        // Copy audio track if it exists
+        if let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first,
+           let compositionAudioTrack = composition.addMutableTrack(
+               withMediaType: .audio,
+               preferredTrackID: kCMPersistentTrackID_Invalid
+           ) {
+            try? compositionAudioTrack.insertTimeRange(
+                CMTimeRange(start: .zero, duration: try await asset.load(.duration)),
+                of: audioTrack,
+                at: .zero
+            )
+        }
+        
+        await exportSession.export()
+        
+        guard exportSession.status == .completed else {
+            throw exportSession.error ?? NSError(domain: "", code: -1)
+        }
+        
+        return outputURL
     }
 } 
