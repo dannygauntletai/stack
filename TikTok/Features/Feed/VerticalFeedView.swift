@@ -88,6 +88,15 @@ class FeedCollectionViewController: UICollectionViewController {
         collectionView.showsVerticalScrollIndicator = false
         collectionView.backgroundColor = .black
         collectionView.register(VideoPlayerCell.self, forCellWithReuseIdentifier: "VideoCell")
+        
+        // Fix scrolling behavior
+        collectionView.contentInsetAdjustmentBehavior = .never
+        collectionView.verticalScrollIndicatorInsets = .zero
+        collectionView.contentInset = .zero
+        
+        // Prevent bounce/scroll at the end
+        collectionView.bounces = false
+        collectionView.alwaysBounceVertical = false
     }
     
     private func setupOverlay() {
@@ -174,6 +183,18 @@ class FeedCollectionViewController: UICollectionViewController {
         videoCell.pause()
         if currentCell == videoCell {
             currentCell = nil
+        }
+    }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        
+        // Ensure collection view layout matches screen bounds exactly
+        if let layout = collectionViewLayout as? UICollectionViewFlowLayout {
+            layout.itemSize = view.bounds.size
+            layout.minimumInteritemSpacing = 0
+            layout.minimumLineSpacing = 0
+            layout.sectionInset = .zero
         }
     }
 }
