@@ -26,12 +26,12 @@ struct StackCategoriesView: View {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(categories) { category in
-                        NavigationLink(destination: CategoryDetailView(categoryName: category.name)) {
+                        NavigationLink(destination: StackedComponentsView(category: category)) {
                             CategoryCell(category: category)
                         }
                     }
                     
-                    NavigationLink(destination: CategoryDetailView(categoryName: "New Category")) {
+                    NavigationLink(destination: StackedComponentsView(category: Category(name: "New Category", icon: "plus", color: .gray))) {
                         VStack(spacing: 12) {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 32))
@@ -55,9 +55,7 @@ struct CategoryCell: View {
     let category: Category
     
     var body: some View {
-        Button {
-            // Handle category selection
-        } label: {
+        NavigationLink(destination: StackedComponentsView(category: category)) {
             VStack(spacing: 12) {
                 Image(systemName: category.icon)
                     .font(.system(size: 32))
