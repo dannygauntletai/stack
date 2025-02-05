@@ -3,6 +3,7 @@ import UIKit
 import AVKit
 import AVFoundation
 import Combine
+import FirebaseFirestore
 
 struct VerticalFeedView: UIViewControllerRepresentable {
     let videos: [Video]

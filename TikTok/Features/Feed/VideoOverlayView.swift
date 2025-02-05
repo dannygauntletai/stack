@@ -5,6 +5,7 @@ struct VideoOverlayView: View {
     @ObservedObject var viewModel: FeedViewModel
     @Binding var interaction: VideoInteraction
     let onCommentsPress: () -> Void
+    @State private var showStackSelection = false
     
     var body: some View {
         VStack(alignment: .center, spacing: 15) {
@@ -39,7 +40,7 @@ struct VideoOverlayView: View {
             
             // Stack Button
             Button {
-                // Stack functionality
+                showStackSelection = true
             } label: {
                 VStack(spacing: 3) {
                     Image(systemName: "plus.square.fill.on.square.fill")
@@ -49,6 +50,9 @@ struct VideoOverlayView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white)
                 }
+            }
+            .sheet(isPresented: $showStackSelection) {
+                StackSelectionModal(video: video)
             }
             
             // Share Button

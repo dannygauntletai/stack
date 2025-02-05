@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseFirestore
 
 struct FeedView: View {
     @StateObject private var viewModel = FeedViewModel()
@@ -11,6 +12,7 @@ struct FeedView: View {
     @State private var dragOffset = CGSize.zero
     @Environment(\.dismiss) private var dismiss
     @StateObject private var videoState = VideoStateManager.shared
+    @State private var showingStackOptions = false
     
     init(
         initialVideo: Video? = nil,
@@ -94,6 +96,9 @@ struct FeedView: View {
                 }
             }
             .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showingStackOptions) {
+            StackSelectionModal(video: viewModel.videos[currentIndex])
         }
         .onChange(of: currentIndex) { _, newValue in
             updateInteractionState(for: newValue)
