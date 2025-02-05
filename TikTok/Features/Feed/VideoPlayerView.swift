@@ -14,15 +14,21 @@ struct VideoPlayerView: View {
         GeometryReader { geometry in
             if let player = viewModel.player {
                 VideoPlayer(player: player)
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height,
+                        alignment: .center
+                    )
+                    .background(Color.black)
                     .rotationEffect(.degrees(90))
                     .onAppear {
+                        // Stop other videos before playing this one
+                        NotificationCenter.default.post(name: .stopOtherVideos, object: player)
                         player.play()
                     }
                     .onDisappear {
                         player.pause()
-                        player.seek(to: .zero)
                     }
             } else {
                 Color.black
@@ -36,11 +42,23 @@ struct VideoPlayerView: View {
 class VideoPlayerViewModel: ObservableObject {
     @Published private(set) var player: AVPlayer?
     private let video: Video
-    private var playerItem: AVPlayerItem?
     private static var assetCache = NSCache<NSString, AVURLAsset>()
     
     init(video: Video) {
         self.video = video
+        
+        // Listen for stop notifications
+        NotificationCenter.default.addObserver(
+            forName: .stopOtherVideos,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            if let otherPlayer = notification.object as? AVPlayer,
+               otherPlayer !== self?.player {
+                self?.player?.pause()
+            }
+        }
+        
         Task {
             await setupPlayer()
         }
@@ -49,7 +67,6 @@ class VideoPlayerViewModel: ObservableObject {
     private func setupPlayer() async {
         guard let url = URL(string: video.videoUrl) else { return }
         
-        // Check cache first
         let urlKey = NSString(string: url.absoluteString)
         if let cachedAsset = Self.assetCache.object(forKey: urlKey) {
             configurePlayer(with: cachedAsset)
@@ -59,7 +76,6 @@ class VideoPlayerViewModel: ObservableObject {
         let asset = AVURLAsset(url: url)
         do {
             let _ = try await asset.load(.tracks, .duration)
-            // Cache the loaded asset
             Self.assetCache.setObject(asset, forKey: urlKey)
             configurePlayer(with: asset)
         } catch {
@@ -68,27 +84,24 @@ class VideoPlayerViewModel: ObservableObject {
     }
     
     private func configurePlayer(with asset: AVURLAsset) {
-        playerItem = AVPlayerItem(asset: asset)
+        let playerItem = AVPlayerItem(asset: asset)
         player = AVPlayer(playerItem: playerItem)
         
         // Set up looping
         NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: playerItem,
-            queue: nil) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.player?.seek(to: .zero)
-                    self?.player?.play()
-                }
-            }
+            queue: nil
+        ) { [weak self] _ in
+            self?.player?.seek(to: .zero)
+            self?.player?.play()
+        }
     }
     
-    // Add prefetch method
     static func prefetchVideo(url: String) {
         guard let videoURL = URL(string: url) else { return }
         let urlKey = NSString(string: videoURL.absoluteString)
         
-        // Skip if already cached
         guard assetCache.object(forKey: urlKey) == nil else { return }
         
         let asset = AVURLAsset(url: videoURL)
@@ -101,8 +114,9 @@ class VideoPlayerViewModel: ObservableObject {
             }
         }
     }
-    
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
+}
+
+// Add notification name
+extension Notification.Name {
+    static let stopOtherVideos = Notification.Name("stopOtherVideos")
 } 

@@ -34,18 +34,26 @@ struct FeedView: View {
                 GeometryReader { geometry in
                     TabView(selection: $currentIndex) {
                         ForEach(Array(viewModel.videos.enumerated()), id: \.element.id) { index, video in
-                            ZStack {
-                                VideoPlayerView(video: video)
-                                    .frame(width: geometry.size.width, height: geometry.size.height)
-                            }
-                            .rotationEffect(.degrees(-90))
-                            .frame(width: geometry.size.height, height: geometry.size.width)
-                            .tag(index)
+                            VideoPlayerView(video: video)
+                                .frame(
+                                    width: UIScreen.main.bounds.width,
+                                    height: UIScreen.main.bounds.height,
+                                    alignment: .center
+                                )
+                                .rotationEffect(.degrees(-90))
+                                .frame(
+                                    width: UIScreen.main.bounds.height,
+                                    height: UIScreen.main.bounds.width
+                                )
+                                .tag(index)
                         }
                     }
-                    .frame(width: geometry.size.height, height: geometry.size.width)
+                    .frame(
+                        width: UIScreen.main.bounds.height,
+                        height: UIScreen.main.bounds.width
+                    )
                     .rotationEffect(.degrees(90), anchor: .topLeading)
-                    .offset(x: geometry.size.width)
+                    .offset(x: UIScreen.main.bounds.width)
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                 }
                 
@@ -61,7 +69,7 @@ struct FeedView: View {
                         )
                         .frame(width: 80)
                         .padding(.trailing, 8)
-                        .padding(.bottom, 140)
+                        .padding(.bottom, 80)
                     }
                 }
                 
