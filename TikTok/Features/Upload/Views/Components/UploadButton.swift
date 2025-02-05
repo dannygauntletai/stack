@@ -12,24 +12,29 @@ struct UploadButton: View {
                 Image(systemName: icon)
                     .font(.system(size: 24))
                     .frame(width: 32)
+                    .foregroundColor(.white)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.white)
                     Text(subtitle)
                         .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.gray)
                 }
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.gray)
             }
             .padding()
-            .background(Color.gray.opacity(0.1))
+            .background(Color(.systemGray6).opacity(0.2))
             .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
         }
-        .foregroundColor(.white)
     }
 } 

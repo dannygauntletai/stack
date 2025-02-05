@@ -13,19 +13,35 @@ struct MainTabView: View {
                 }
                 .tag(0)
             
-            UploadView()
+            // Temporary Explore Tab
+            Text("Explore View")
                 .tabItem {
-                    Image(systemName: selectedTab == 1 ? "plus.square.fill" : "plus.square")
-                    Text("Upload")
+                    Image(systemName: selectedTab == 1 ? "magnifyingglass.circle.fill" : "magnifyingglass.circle")
+                    Text("Explore")
                 }
                 .tag(1)
             
-            ProfileView()
+            UploadView()
                 .tabItem {
-                    Image(systemName: selectedTab == 2 ? "person.fill" : "person")
-                    Text("Profile")
+                    Image(systemName: selectedTab == 2 ? "plus.square.fill" : "plus.square")
+                    Text("Upload")
                 }
                 .tag(2)
+            
+            // Stack Tab
+            Text("Stack View")
+                .tabItem {
+                    Image(systemName: selectedTab == 3 ? "square.stack.3d.up.fill" : "square.stack.3d.up")
+                    Text("Stack")
+                }
+                .tag(3)
+            
+            ProfileView()
+                .tabItem {
+                    Image(systemName: selectedTab == 4 ? "person.fill" : "person")
+                    Text("Profile")
+                }
+                .tag(4)
         }
         .tint(.white)
         .onAppear {
