@@ -17,7 +17,7 @@ struct CommentsSheet: View {
     
     var body: some View {
         NavigationView {
-            VStack {
+            VStack(spacing: 0) {
                 if viewModel.isLoading {
                     ProgressView()
                 } else {
@@ -25,27 +25,42 @@ struct CommentsSheet: View {
                         LazyVStack(spacing: 16) {
                             ForEach(viewModel.comments) { comment in
                                 CommentRow(comment: comment, viewModel: viewModel)
-                }
-            }
-            .padding()
+                            }
+                        }
+                        .padding(.horizontal)
                     }
                 }
                 
                 // Comment input
                 HStack(spacing: 12) {
                     TextField("Add comment...", text: $commentText)
-                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 14))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
                         .focused($isFocused)
                     
-                    Button(action: submitComment) {
-                        Text("Post")
-                            .fontWeight(.semibold)
+                    if !commentText.isEmpty {
+                        Button(action: submitComment) {
+                            Text("Post")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .white)
+                                .padding(.trailing, 8)
+                        }
+                        .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
                 .background(Color(.systemBackground))
-                .overlay(Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.2)), alignment: .top)
+                .overlay(
+                    Rectangle()
+                        .frame(height: 0.5)
+                        .foregroundColor(Color(.systemGray3))
+                        .opacity(0.5),
+                    alignment: .top
+                )
             }
             .navigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
