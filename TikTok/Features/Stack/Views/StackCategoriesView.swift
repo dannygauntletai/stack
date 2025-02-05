@@ -9,26 +9,28 @@ struct StackCategoriesView: View {
     ]
     
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(viewModel.categories) { category in
-                    NavigationLink {
-                        StackedComponentsView(category: category)
-                    } label: {
-                        CategoryCard(category: category, count: viewModel.stackCounts[category.id] ?? 0)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(category.color.opacity(0.3), lineWidth: 1)
-                            )
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 16) {
+                    ForEach(viewModel.categories) { category in
+                        NavigationLink {
+                            StackedComponentsView(category: category)
+                        } label: {
+                            CategoryCard(category: category, count: viewModel.stackCounts[category.id] ?? 0)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(category.color.opacity(0.3), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(CategoryButtonStyle(color: category.color))
                     }
-                    .buttonStyle(CategoryButtonStyle(color: category.color))
                 }
+                .padding(16)
             }
-            .padding(16)
-        }
-        .navigationTitle("Stacks")
-        .task {
-            await viewModel.fetchStackCounts()
+            .navigationTitle("Stacks")
+            .task {
+                await viewModel.fetchStackCounts()
+            }
         }
     }
 }
