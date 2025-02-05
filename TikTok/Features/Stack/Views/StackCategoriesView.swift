@@ -3,6 +3,12 @@ import SwiftUI
 struct StackCategoriesView: View {
     @StateObject private var viewModel = StackViewModel()
     
+    // Define consistent layout values
+    private let gridSpacing: CGFloat = 16
+    private let horizontalPadding: CGFloat = 16
+    private let cardPadding: CGFloat = 12
+    private let cardWidth = (UIScreen.main.bounds.width - 48) / 2 // Match video card width
+    
     let columns = [
         GridItem(.flexible()),
         GridItem(.flexible())
@@ -11,21 +17,23 @@ struct StackCategoriesView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 16) {
+                LazyVGrid(columns: columns, spacing: gridSpacing) {
                     ForEach(viewModel.categories) { category in
                         NavigationLink {
                             StackedComponentsView(category: category)
                         } label: {
-                            CategoryCard(category: category, count: viewModel.stackCounts[category.id] ?? 0)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(category.color.opacity(0.3), lineWidth: 1)
-                                )
+                            CategoryCard(
+                                category: category,
+                                count: viewModel.stackCounts[category.id] ?? 0,
+                                cardWidth: cardWidth,
+                                cardPadding: cardPadding
+                            )
                         }
                         .buttonStyle(CategoryButtonStyle(color: category.color))
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, 8)
             }
             .navigationTitle("Stacks")
             .task {
@@ -38,6 +46,8 @@ struct StackCategoriesView: View {
 private struct CategoryCard: View {
     let category: StackCategory
     let count: Int
+    let cardWidth: CGFloat
+    let cardPadding: CGFloat
     
     var body: some View {
         VStack(spacing: 12) {
@@ -46,18 +56,21 @@ private struct CategoryCard: View {
                 .foregroundStyle(category.color)
             
             Text(category.name)
-                .font(.headline)
+                .font(.system(size: 16, weight: .semibold))
             
             Text("\(count) videos")
-                .font(.subheadline)
+                .font(.system(size: 14))
                 .foregroundStyle(.gray)
         }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fill)
-        .padding()
+        .frame(width: cardWidth - (cardPadding * 2))
+        .frame(height: 140) // Fixed height for consistency
+        .padding(cardPadding)
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.1), radius: 3, y: 1)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(category.color.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 
