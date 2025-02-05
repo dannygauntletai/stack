@@ -21,9 +21,7 @@ struct VideoPlayerView: View {
                         alignment: .center
                     )
                     .background(Color.black)
-                    .rotationEffect(.degrees(90))
                     .onAppear {
-                        // Make sure player is ready before playing
                         player.replaceCurrentItem(with: player.currentItem)
                         NotificationCenter.default.post(name: .stopOtherVideos, object: player)
                         player.play()

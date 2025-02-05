@@ -31,47 +31,14 @@ struct FeedView: View {
             } else if viewModel.videos.isEmpty {
                 Text("No videos available")
             } else {
-                GeometryReader { geometry in
-                    TabView(selection: $currentIndex) {
-                        ForEach(Array(viewModel.videos.enumerated()), id: \.element.id) { index, video in
-                            VideoPlayerView(video: video)
-                                .frame(
-                                    width: UIScreen.main.bounds.width,
-                                    height: UIScreen.main.bounds.height,
-                                    alignment: .center
-                                )
-                                .rotationEffect(.degrees(-90))
-                                .frame(
-                                    width: UIScreen.main.bounds.height,
-                                    height: UIScreen.main.bounds.width
-                                )
-                                .tag(index)
-                        }
-                    }
-                    .frame(
-                        width: UIScreen.main.bounds.height,
-                        height: UIScreen.main.bounds.width
-                    )
-                    .rotationEffect(.degrees(90), anchor: .topLeading)
-                    .offset(x: UIScreen.main.bounds.width)
-                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                }
-                
-                ZStack(alignment: .trailing) {
-                    Color.clear
-                    
-                    if !viewModel.videos.isEmpty {
-                        VideoOverlayView(
-                            video: viewModel.videos[currentIndex],
-                            viewModel: viewModel,
-                            interaction: $currentInteraction,
-                            onCommentsPress: { showComments = true }
-                        )
-                        .frame(width: 80)
-                        .padding(.trailing, 8)
-                        .padding(.bottom, 80)
-                    }
-                }
+                VerticalFeedView(
+                    videos: viewModel.videos,
+                    currentIndex: $currentIndex,
+                    viewModel: viewModel,
+                    interaction: $currentInteraction,
+                    onCommentsPress: { showComments = true }
+                )
+                .ignoresSafeArea()
                 
                 if isDeepLinked {
                     VStack {
@@ -92,15 +59,9 @@ struct FeedView: View {
                 }
             }
         }
-        .ignoresSafeArea()
-        .statusBar(hidden: true)
-        .background(Color.black)
         .sheet(isPresented: $showComments) {
-            CommentsSheet(
-                video: viewModel.videos[currentIndex]
-            ) { [video = viewModel.videos[currentIndex]] in
-                // Update both the interaction state and the video model
-                if let index = viewModel.videos.firstIndex(where: { $0.id == video.id }) {
+            CommentsSheet(video: viewModel.videos[currentIndex]) {
+                if let index = viewModel.videos.firstIndex(where: { $0.id == viewModel.videos[currentIndex].id }) {
                     viewModel.videos[index].comments += 1
                     currentInteraction.comments = viewModel.videos[index].comments
                 }
@@ -109,50 +70,13 @@ struct FeedView: View {
         }
         .onChange(of: currentIndex) { _, newValue in
             updateInteractionState(for: newValue)
-            
-            // Prefetch next video
-            if newValue + 1 < viewModel.videos.count {
-                let nextVideo = viewModel.videos[newValue + 1]
-                VideoPlayerViewModel.prefetchVideo(url: nextVideo.videoUrl)
-            }
-        }
-        .onAppear {
-            // Ensure correct state when returning to the feed
-            updateInteractionState(for: currentIndex)
         }
         .task {
             await viewModel.fetchVideos(initialVideo: initialVideo)
             if initialVideo != nil {
-                // Ensure we update interaction state for initial video
                 updateInteractionState(for: currentIndex)
             }
         }
-        .offset(x: dragOffset.width > 0 ? dragOffset.width : 0)
-        .gesture(
-            DragGesture()
-                .onChanged { gesture in
-                    if isDeepLinked {
-                        dragOffset = gesture.translation
-                    }
-                }
-                .onEnded { gesture in
-                    if isDeepLinked {
-                        let threshold = UIScreen.main.bounds.width * 0.3
-                        if gesture.translation.width > threshold {
-                            withAnimation(.easeOut) {
-                                dragOffset = CGSize(width: UIScreen.main.bounds.width, height: 0)
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                onBack?()
-                            }
-                        } else {
-                            withAnimation(.easeOut) {
-                                dragOffset = .zero
-                            }
-                        }
-                    }
-                }
-        )
     }
     
     private func updateInteractionState(for index: Int) {
