@@ -77,30 +77,17 @@ class VideoUploadViewModel: ObservableObject {
                 }
                 
                 taskReference?.observe(.success) { [weak self] _ in
-                    storageRef.downloadURL { [weak self] url, error in
-                        DispatchQueue.main.async {
-                            if let error = error {
-                                self?.handleError(error, completion: completion)
-                                return
-                            }
-                            
-                            guard let downloadURL = url?.absoluteString else {
-                                let error = NSError(domain: "", code: -1, 
-                                    userInfo: [NSLocalizedDescriptionKey: "Failed to get download URL"])
-                                self?.handleError(error, completion: completion)
-                                return
-                            }
-                            
-                            self?.uploadStatus = .savingToFirestore(attempt: 1)
-                            self?.saveToFirestore(
-                                videoId: videoId,
-                                videoURL: downloadURL,
-                                thumbnailURL: thumbnailURL,
-                                caption: caption,
-                                userId: currentUser.uid,
-                                completion: completion
-                            )
-                        }
+                    let gsURL = "gs://\(storageRef.bucket)/\(storageRef.fullPath)"
+                    DispatchQueue.main.async {
+                        self?.uploadStatus = .savingToFirestore(attempt: 1)
+                        self?.saveToFirestore(
+                            videoId: videoId,
+                            videoURL: gsURL,
+                            thumbnailURL: thumbnailURL,
+                            caption: caption,
+                            userId: currentUser.uid,
+                            completion: completion
+                        )
                     }
                 }
                 
@@ -153,8 +140,7 @@ class VideoUploadViewModel: ObservableObject {
         
         do {
             _ = try await thumbnailRef.putDataAsync(imageData, metadata: metadata)
-            let downloadURL = try await thumbnailRef.downloadURL()
-            return downloadURL.absoluteString
+            return "gs://\(thumbnailRef.bucket)/\(thumbnailRef.fullPath)"
         } catch {
             throw error
         }

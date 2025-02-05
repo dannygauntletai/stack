@@ -1,5 +1,6 @@
 import SwiftUI
 import AVKit
+import FirebaseStorage
 
 struct VideoPlayerView: View {
     let video: Video
@@ -71,40 +72,56 @@ class VideoPlayerViewModel: ObservableObject {
     
     init(video: Video) {
         self.video = video
-        
+        setupNotifications()
+        Task {
+            await setupPlayer()
+        }
+    }
+    
+    private func setupNotifications() {
         // Listen for stop notifications
         NotificationCenter.default.addObserver(
             forName: .stopOtherVideos,
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            if let otherPlayer = notification.object as? AVPlayer,
-               otherPlayer !== self?.player {
-                self?.player?.pause()
+            Task { @MainActor in
+                if let otherPlayer = notification.object as? AVPlayer,
+                   otherPlayer !== self?.player {
+                    self?.player?.pause()
+                }
             }
-        }
-        
-        Task {
-            await setupPlayer()
         }
     }
     
     private func setupPlayer() async {
-        guard let url = URL(string: video.videoUrl) else { return }
-        
-        let urlKey = NSString(string: url.absoluteString)
-        if let cachedAsset = Self.assetCache.object(forKey: urlKey) {
-            configurePlayer(with: cachedAsset)
+        // Convert gs:// URL to a Firebase Storage reference
+        let gsURL = video.videoUrl
+        guard gsURL.hasPrefix("gs://") else {
+            print("Invalid video URL format: \(gsURL)")
             return
         }
         
-        let asset = AVURLAsset(url: url)
         do {
-            let _ = try await asset.load(.tracks, .duration)
+            let storageRef = Storage.storage().reference(forURL: gsURL)
+            let downloadURL = try await storageRef.downloadURL()
+            
+            let urlKey = NSString(string: downloadURL.absoluteString)
+            if let cachedAsset = Self.assetCache.object(forKey: urlKey) {
+                configurePlayer(with: cachedAsset)
+                return
+            }
+            
+            let asset = AVURLAsset(url: downloadURL)
+            
+            // Load essential properties
+            try await asset.loadTracks(withMediaType: .video)
+            _ = try await asset.load(.duration)
+            
             Self.assetCache.setObject(asset, forKey: urlKey)
             configurePlayer(with: asset)
         } catch {
-            print("Failed to load asset:", error)
+            print("Failed to setup player: \(error.localizedDescription)")
         }
     }
     
@@ -116,26 +133,33 @@ class VideoPlayerViewModel: ObservableObject {
         NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: playerItem,
-            queue: nil
+            queue: .main
         ) { [weak self] _ in
-            self?.player?.seek(to: .zero)
-            self?.player?.play()
+            Task { @MainActor in
+                self?.player?.seek(to: .zero)
+                self?.player?.play()
+            }
         }
     }
     
     static func prefetchVideo(url: String) {
-        guard let videoURL = URL(string: url) else { return }
-        let urlKey = NSString(string: videoURL.absoluteString)
+        guard url.hasPrefix("gs://") else { return }
         
-        guard assetCache.object(forKey: urlKey) == nil else { return }
-        
-        let asset = AVURLAsset(url: videoURL)
         Task {
             do {
-                let _ = try await asset.load(.tracks, .duration)
+                let storageRef = Storage.storage().reference(forURL: url)
+                let downloadURL = try await storageRef.downloadURL()
+                let urlKey = NSString(string: downloadURL.absoluteString)
+                
+                guard assetCache.object(forKey: urlKey) == nil else { return }
+                
+                let asset = AVURLAsset(url: downloadURL)
+                try await asset.loadTracks(withMediaType: .video)
+                _ = try await asset.load(.duration)
+                
                 assetCache.setObject(asset, forKey: urlKey)
             } catch {
-                print("Failed to prefetch video:", error)
+                print("Failed to prefetch video: \(error.localizedDescription)")
             }
         }
     }

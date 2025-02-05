@@ -57,25 +57,17 @@ private struct VideoCard: View {
         VStack(spacing: 8) {
             // Thumbnail container with fixed dimensions
             ZStack {
-                if let thumbnailUrl = video.thumbnailUrl,
-                   let url = URL(string: thumbnailUrl) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        case .failure(_):
-                            placeholderView
-                        case .empty:
-                            placeholderView
-                                .overlay {
-                                    ProgressView()
-                                        .tint(category.color)
-                                }
-                        @unknown default:
-                            placeholderView
-                        }
+                if let thumbnailUrl = video.thumbnailUrl {
+                    StorageImageView(gsURL: thumbnailUrl) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        placeholderView
+                            .overlay {
+                                ProgressView()
+                                    .tint(category.color)
+                            }
                     }
                 } else {
                     placeholderView

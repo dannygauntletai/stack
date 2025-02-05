@@ -4,6 +4,7 @@ import AVKit
 import AVFoundation
 import Combine
 import FirebaseFirestore
+import FirebaseStorage
 
 struct VerticalFeedView: UIViewControllerRepresentable {
     let videos: [Video]
@@ -212,18 +213,30 @@ class VideoPlayerCell: UICollectionViewCell {
     }
     
     private func setupPlayer(with video: Video) {
-        guard let url = URL(string: video.videoUrl) else { return }
-        let player = AVPlayer(url: url)
-        self.player = player
+        guard video.videoUrl.hasPrefix("gs://") else { return }
         
-        let playerLayer = AVPlayerLayer(player: player)
-        self.playerLayer = playerLayer
-        playerLayer.videoGravity = .resizeAspect
-        playerLayer.frame = contentView.bounds
-        contentView.layer.addSublayer(playerLayer)
-        
-        // Set initial state
-        player.isMuted = VideoStateManager.shared.isMuted
+        Task {
+            do {
+                let storageRef = Storage.storage().reference(forURL: video.videoUrl)
+                let downloadURL = try await storageRef.downloadURL()
+                
+                await MainActor.run {
+                    let player = AVPlayer(url: downloadURL)
+                    self.player = player
+                    
+                    let playerLayer = AVPlayerLayer(player: player)
+                    self.playerLayer = playerLayer
+                    playerLayer.videoGravity = .resizeAspect
+                    playerLayer.frame = contentView.bounds
+                    contentView.layer.addSublayer(playerLayer)
+                    
+                    // Set initial state
+                    player.isMuted = VideoStateManager.shared.isMuted
+                }
+            } catch {
+                print("Failed to load video: \(error.localizedDescription)")
+            }
+        }
     }
     
     private func observeVideoState() {
