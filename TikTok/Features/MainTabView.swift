@@ -13,11 +13,11 @@ struct MainTabView: View {
                 }
                 .tag(0)
             
-            // Temporary Explore Tab
-            Text("Explore View")
+            // Moved Stacks to second position
+            StackCategoriesView()
                 .tabItem {
-                    Image(systemName: selectedTab == 1 ? "magnifyingglass.circle.fill" : "magnifyingglass.circle")
-                    Text("Explore")
+                    Image(systemName: selectedTab == 1 ? "square.stack.3d.up.fill" : "square.stack.3d.up")
+                    Text("Stacks")
                 }
                 .tag(1)
             
@@ -28,11 +28,11 @@ struct MainTabView: View {
                 }
                 .tag(2)
             
-            // Stack Tab
-            StackCategoriesView()
+            // Added Leaderboard tab
+            Text("Leaderboard View")
                 .tabItem {
-                    Image(systemName: selectedTab == 3 ? "square.stack.3d.up.fill" : "square.stack.3d.up")
-                    Text("Stacks")
+                    Image(systemName: selectedTab == 3 ? "trophy.fill" : "trophy")
+                    Text("Leaderboard")
                 }
                 .tag(3)
             

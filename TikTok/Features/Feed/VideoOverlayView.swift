@@ -7,29 +7,32 @@ struct VideoOverlayView: View {
     let onCommentsPress: () -> Void
     
     var body: some View {
-        VStack(alignment: .center, spacing: 25) {
+        VStack(alignment: .center, spacing: 15) {
+            Spacer()
+                .frame(height: 250)  // Push content down from top
+            
             // Like Button
             Button {
                 toggleLike()
             } label: {
-                VStack(spacing: 4) {
+                VStack(spacing: 3) {
                     Image(systemName: viewModel.likedVideoIds.contains(video.id) ? "heart.fill" : "heart")
-                        .font(.system(size: 35))
+                        .font(.system(size: 32))
                         .foregroundStyle(viewModel.likedVideoIds.contains(video.id) ? .red : .white)
                     Text(formatCount(interaction.likes))
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white)
                 }
             }
             
             // Comments Button
             Button(action: onCommentsPress) {
-                VStack(spacing: 4) {
+                VStack(spacing: 3) {
                     Image(systemName: "message")
-                        .font(.system(size: 33))
+                        .font(.system(size: 30))
                         .foregroundStyle(.white)
                     Text(formatCount(interaction.comments))
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white)
                 }
             }
@@ -38,12 +41,12 @@ struct VideoOverlayView: View {
             Button {
                 // Stack functionality
             } label: {
-                VStack(spacing: 4) {
+                VStack(spacing: 3) {
                     Image(systemName: "plus.square.fill.on.square.fill")
-                        .font(.system(size: 33))
+                        .font(.system(size: 30))
                         .foregroundStyle(.white)
                     Text("Stack")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white)
                 }
             }
@@ -52,16 +55,21 @@ struct VideoOverlayView: View {
             Button {
                 // Share functionality
             } label: {
-                VStack(spacing: 4) {
+                VStack(spacing: 3) {
                     Image(systemName: "arrowshape.turn.up.forward.fill")
-                        .font(.system(size: 33))
+                        .font(.system(size: 30))
                         .foregroundStyle(.white)
                     Text("Share")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white)
                 }
             }
+            
+            Spacer()
+                .frame(height: 140)  // Increased from 100 to 140 to lift share button higher
         }
+        .padding(.trailing, 16)
+        .frame(maxWidth: .infinity, alignment: .trailing)
         .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 4)
     }
     
