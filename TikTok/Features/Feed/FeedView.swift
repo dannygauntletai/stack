@@ -10,6 +10,7 @@ struct FeedView: View {
     var onBack: (() -> Void)? = nil
     @State private var dragOffset = CGSize.zero
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var videoState = VideoStateManager.shared
     
     init(
         initialVideo: Video? = nil,
@@ -31,30 +32,56 @@ struct FeedView: View {
             } else if viewModel.videos.isEmpty {
                 Text("No videos available")
             } else {
-                VerticalFeedView(
-                    videos: viewModel.videos,
-                    currentIndex: $currentIndex,
-                    viewModel: viewModel,
-                    interaction: $currentInteraction,
-                    onCommentsPress: { showComments = true }
-                )
-                .ignoresSafeArea()
-                
-                if isDeepLinked {
+                ZStack {
+                    VerticalFeedView(
+                        videos: viewModel.videos,
+                        currentIndex: $currentIndex,
+                        viewModel: viewModel,
+                        interaction: $currentInteraction,
+                        onCommentsPress: { showComments = true }
+                    )
+                    .onChange(of: currentIndex) { _, newIndex in
+                        videoState.currentVideoIndex = newIndex
+                    }
+                    .ignoresSafeArea()
+                    
+                    // Mute Button Overlay
                     VStack {
                         HStack {
                             Button {
-                                onBack?()
+                                videoState.isMuted.toggle()
                             } label: {
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 24, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .padding(16)
+                                Image(systemName: videoState.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(.white.opacity(0.5))
+                                    .padding(8)
+                                    .background(.black.opacity(0.2))
+                                    .clipShape(Circle())
                             }
+                            .padding(.leading, 16)
+                            .padding(.top, 50)
+                            
                             Spacer()
                         }
-                        .padding(.top, 44)
                         Spacer()
+                    }
+                    
+                    if isDeepLinked {
+                        VStack {
+                            HStack {
+                                Button {
+                                    onBack?()
+                                } label: {
+                                    Image(systemName: "chevron.left")
+                                        .font(.system(size: 24, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .padding(16)
+                                }
+                                Spacer()
+                            }
+                            .padding(.top, 44)
+                            Spacer()
+                        }
                     }
                 }
             }

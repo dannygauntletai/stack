@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import AVKit
 import AVFoundation
+import Combine
 
 struct VerticalFeedView: UIViewControllerRepresentable {
     let videos: [Video]
@@ -200,33 +201,45 @@ class FeedCollectionViewController: UICollectionViewController {
 }
 
 class VideoPlayerCell: UICollectionViewCell {
-    private var playerLayer: AVPlayerLayer?
     private var player: AVPlayer?
-    
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        backgroundColor = .black
-    }
-    
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+    private var playerLayer: AVPlayerLayer?
+    private var cancellables = Set<AnyCancellable>()
     
     func configure(with video: Video) {
-        // Clean up existing player if any
-        playerLayer?.removeFromSuperlayer()
-        player?.pause()
-        
+        setupPlayer(with: video)
+        observeVideoState()
+    }
+    
+    private func setupPlayer(with video: Video) {
         guard let url = URL(string: video.videoUrl) else { return }
+        let player = AVPlayer(url: url)
+        self.player = player
         
-        player = AVPlayer(url: url)
-        playerLayer = AVPlayerLayer(player: player)
-        playerLayer?.videoGravity = .resizeAspect
-        playerLayer?.frame = contentView.bounds
+        let playerLayer = AVPlayerLayer(player: player)
+        self.playerLayer = playerLayer
+        playerLayer.videoGravity = .resizeAspect
+        playerLayer.frame = contentView.bounds
+        contentView.layer.addSublayer(playerLayer)
         
-        if let playerLayer = playerLayer {
-            contentView.layer.addSublayer(playerLayer)
-        }
+        // Set initial state
+        player.isMuted = VideoStateManager.shared.isMuted
+    }
+    
+    private func observeVideoState() {
+        VideoStateManager.shared.$isMuted
+            .sink { [weak self] isMuted in
+                self?.player?.isMuted = isMuted
+            }
+            .store(in: &cancellables)
+    }
+    
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        cancellables.removeAll()
+        player?.pause()
+        playerLayer?.removeFromSuperlayer()
+        player = nil
+        playerLayer = nil
     }
     
     func play() {
@@ -240,13 +253,5 @@ class VideoPlayerCell: UICollectionViewCell {
     override func layoutSubviews() {
         super.layoutSubviews()
         playerLayer?.frame = contentView.bounds
-    }
-    
-    override func prepareForReuse() {
-        super.prepareForReuse()
-        player?.pause()
-        playerLayer?.removeFromSuperlayer()
-        player = nil
-        playerLayer = nil
     }
 } 

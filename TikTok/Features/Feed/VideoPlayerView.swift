@@ -4,6 +4,7 @@ import AVKit
 struct VideoPlayerView: View {
     let video: Video
     @StateObject private var viewModel: VideoPlayerViewModel
+    @State private var isMuted = true  // Default to muted
     
     init(video: Video) {
         self.video = video
@@ -12,26 +13,51 @@ struct VideoPlayerView: View {
     
     var body: some View {
         GeometryReader { geometry in
-            if let player = viewModel.player {
-                VideoPlayer(player: player)
-                    .aspectRatio(contentMode: .fit)
-                    .frame(
-                        width: geometry.size.width,
-                        height: geometry.size.height,
-                        alignment: .center
-                    )
-                    .background(Color.black)
-                    .onAppear {
-                        player.replaceCurrentItem(with: player.currentItem)
-                        NotificationCenter.default.post(name: .stopOtherVideos, object: player)
-                        player.play()
+            ZStack {
+                if let player = viewModel.player {
+                    VideoPlayer(player: player)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(
+                            width: geometry.size.width,
+                            height: geometry.size.height,
+                            alignment: .center
+                        )
+                        .background(Color.black)
+                        .onAppear {
+                            player.isMuted = isMuted  // Set initial mute state
+                            player.replaceCurrentItem(with: player.currentItem)
+                            NotificationCenter.default.post(name: .stopOtherVideos, object: player)
+                            player.play()
+                        }
+                        .onDisappear {
+                            player.pause()
+                        }
+                } else {
+                    Color.black
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                }
+                
+                // Mute button overlay
+                VStack {
+                    HStack {
+                        Button {
+                            isMuted.toggle()
+                            viewModel.player?.isMuted = isMuted
+                        } label: {
+                            Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                .font(.system(size: 22))
+                                .foregroundStyle(.white)
+                                .padding(8)
+                                .background(.black.opacity(0.3))
+                                .clipShape(Circle())
+                        }
+                        .padding(.leading, 16)
+                        .padding(.top, 50)
+                        
+                        Spacer()
                     }
-                    .onDisappear {
-                        player.pause()
-                    }
-            } else {
-                Color.black
-                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    Spacer()
+                }
             }
         }
     }

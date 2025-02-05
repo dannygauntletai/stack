@@ -29,10 +29,10 @@ struct MainTabView: View {
                 .tag(2)
             
             // Stack Tab
-            Text("Stack View")
+            StackCategoriesView()
                 .tabItem {
                     Image(systemName: selectedTab == 3 ? "square.stack.3d.up.fill" : "square.stack.3d.up")
-                    Text("Stack")
+                    Text("Stacks")
                 }
                 .tag(3)
             
