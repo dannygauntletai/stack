@@ -44,6 +44,22 @@ struct FeedView: View {
                     )
                     .onChange(of: currentIndex) { _, newIndex in
                         videoState.currentVideoIndex = newIndex
+                        if let video = viewModel.videos[safe: newIndex] {
+                            videoState.currentVideo = video
+                            videoState.isPlaying = true
+                        }
+                    }
+                    .onAppear {
+                        if let initialVideo = initialVideo {
+                            if let index = viewModel.videos.firstIndex(where: { $0.id == initialVideo.id }) {
+                                currentIndex = index
+                                videoState.currentVideo = initialVideo
+                                videoState.isPlaying = true
+                            }
+                        } else if let firstVideo = viewModel.videos.first {
+                            videoState.currentVideo = firstVideo
+                            videoState.isPlaying = true
+                        }
                     }
                     .ignoresSafeArea()
                     

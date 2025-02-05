@@ -56,10 +56,23 @@ class VideoUploadViewModel: ObservableObject {
                 let thumbnailURL = try await uploadThumbnail(for: videoId, image: thumbnail)
                 
                 let storageRef = storage.reference().child("videos/\(videoId).mp4")
+                // Set proper metadata for streaming
                 let metadata = StorageMetadata()
                 metadata.contentType = "video/mp4"
+                metadata.customMetadata = [
+                    "fastStart": "true",  // Indicates MOOV atom is at start
+                    "uploadDate": ISO8601DateFormatter().string(from: Date())
+                ]
                 
-                // Upload the original video directly without rotation
+                // First check if video is in correct format
+                let asset = AVAsset(url: url)
+                let duration = try await asset.load(.duration)
+                if duration.seconds == 0 {
+                    throw NSError(domain: "", code: -1, 
+                        userInfo: [NSLocalizedDescriptionKey: "Invalid video format"])
+                }
+                
+                // Upload the video with proper metadata
                 currentUploadTask = storageRef.putFile(from: url, metadata: metadata)
                 
                 let taskReference = currentUploadTask
