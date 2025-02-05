@@ -2,6 +2,7 @@ import SwiftUI
 
 struct StackCategoriesView: View {
     @StateObject private var viewModel = StackViewModel()
+    @State private var showingCreateCategory = false
     
     // Define consistent layout values
     private let gridSpacing: CGFloat = 16
@@ -17,7 +18,18 @@ struct StackCategoriesView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVGrid(columns: columns, spacing: gridSpacing) {
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding()
+                    } else if let error = viewModel.errorMessage {
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                    }
+                    
+                    LazyVGrid(columns: columns, spacing: gridSpacing) {
                     ForEach(viewModel.categories) { category in
                         NavigationLink {
                             StackedComponentsView(category: category)
@@ -37,7 +49,21 @@ struct StackCategoriesView: View {
             }
             .navigationTitle("Stacks")
             .task {
+                await viewModel.fetchCategories()
                 await viewModel.fetchStackCounts()
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingCreateCategory = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                    }
+                }
+            }
+            .sheet(isPresented: $showingCreateCategory) {
+                CreateCategoryView(viewModel: viewModel)
             }
         }
     }
