@@ -47,20 +47,29 @@ struct StackCategoriesView: View {
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, 8)
             }
-            .navigationTitle("Stacks")
-            .task {
-                await viewModel.fetchCategories()
-                await viewModel.fetchStackCounts()
-            }
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: .principal) {
+                    Text("Stacks")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, horizontalPadding)
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showingCreateCategory = true
                     } label: {
                         Image(systemName: "plus.circle.fill")
-                            .font(.title3)
+                            .font(.title2)
                     }
+                    .padding(.trailing, horizontalPadding - 8)
                 }
+            }
+            .task {
+                await viewModel.fetchCategories()
+                await viewModel.fetchStackCounts()
             }
             .sheet(isPresented: $showingCreateCategory) {
                 CreateCategoryView(viewModel: viewModel)
