@@ -200,6 +200,19 @@ class FeedCollectionViewController: UICollectionViewController {
             layout.sectionInset = .zero
         }
     }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        // Pause current video when leaving view
+        currentCell?.pause()
+    }
+    
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        // Clean up when view disappears
+        currentCell?.cleanup()
+        currentCell = nil
+    }
 }
 
 // Track active downloads to prevent duplicates
@@ -235,29 +248,73 @@ class VideoPlayerCell: UICollectionViewCell {
     private var setupTask: Task<Void, Never>?
     private var playerStatusObserver: NSKeyValueObservation?
     
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        print("[VideoPlayer] Preparing for reuse")
+        cleanup()
+    }
+    
+    deinit {
+        print("[VideoPlayer] Cell is being deinitialized")
+        cleanup()
+    }
+    
+    func cleanup() {
+        print("[VideoPlayer] Starting cleanup")
+        loadingIndicator?.stopAnimating()
+        
+        // Cancel any ongoing setup first
+        setupTask?.cancel()
+        setupTask = nil
+        
+        // Remove observers before cleaning up player
+        if let player = player, let currentItem = player.currentItem {
+            NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: currentItem)
+            NotificationCenter.default.removeObserver(self, name: .AVPlayerItemFailedToPlayToEndTime, object: currentItem)
+        }
+        
+        playerStatusObserver?.invalidate()
+        playerStatusObserver = nil
+        
+        // Cleanup player
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+        player = nil
+        
+        // Cleanup UI
+        playerLayer?.removeFromSuperlayer()
+        playerLayer = nil
+        loadingIndicator?.removeFromSuperview()
+        loadingIndicator = nil
+        
+        // Reset state
+        currentVideoUrl = nil
+        currentVideo = nil
+        
+        // Clean up temporary files
+        if let videoUrl = currentVideoUrl,
+           let videoId = videoUrl.components(separatedBy: "/").last?.replacingOccurrences(of: ".mp4", with: "") {
+            let tmpURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("\(videoId).mp4")
+            try? FileManager.default.removeItem(at: tmpURL)
+            
+            let transcodedURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("\(videoId)_video_only.mp4")
+            try? FileManager.default.removeItem(at: transcodedURL)
+        }
+        
+        // Remove all observers
+        NotificationCenter.default.removeObserver(self)
+        cancellables.removeAll()
+    }
+    
     func configure(with video: Video) {
         print("[VideoPlayer] Configuring cell for video: \(video.id)")
         
         // Cancel any existing setup task
         setupTask?.cancel()
         
-        // If we're already configured for this video URL, just update play state
-        if currentVideoUrl == video.videoUrl {
-            print("[VideoPlayer] Already configured for this URL")
-            if VideoStateManager.shared.currentVideo?.id == video.id {
-                // Only attempt to play if player exists
-                if player != nil {
-                    print("[VideoPlayer] Playing existing video")
-                    play()
-                } else {
-                    print("[VideoPlayer] Player is nil, setting up new player")
-                    setupPlayer(with: video)
-                }
-            }
-            return
-        }
-        
-        // Clean up existing player
+        // Clean up existing player before setting up new one
         cleanup()
         
         currentVideoUrl = video.videoUrl
@@ -528,63 +585,6 @@ class VideoPlayerCell: UICollectionViewCell {
             .store(in: &cancellables)
     }
     
-    private func cleanup() {
-        print("[VideoPlayer] Starting cleanup")
-        loadingIndicator?.stopAnimating()
-        
-        cancellables.removeAll()
-        
-        // Cancel any ongoing setup
-        setupTask?.cancel()
-        setupTask = nil
-        
-        // Remove observers
-        if let player = player, let currentItem = player.currentItem {
-            NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: currentItem)
-        }
-        playerStatusObserver?.invalidate()
-        playerStatusObserver = nil
-        
-        // Cleanup player
-        player?.pause()
-        player?.replaceCurrentItem(with: nil)
-        player = nil
-        
-        // Cleanup UI
-        playerLayer?.removeFromSuperlayer()
-        playerLayer = nil
-        loadingIndicator?.removeFromSuperview()
-        loadingIndicator = nil
-        
-        // Reset state
-        currentVideoUrl = nil
-        currentVideo = nil
-        
-        playerStatusObserver?.invalidate()
-        playerStatusObserver = nil
-        
-        // Clean up temporary files
-        if let videoUrl = currentVideoUrl,
-           let videoId = videoUrl.components(separatedBy: "/").last?.replacingOccurrences(of: ".mp4", with: "") {
-            // Remove original file
-            let tmpURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(videoId).mp4")
-            try? FileManager.default.removeItem(at: tmpURL)
-            
-            // Remove transcoded file
-            let transcodedURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(videoId)_video_only.mp4")
-            try? FileManager.default.removeItem(at: transcodedURL)
-        }
-        
-        currentVideoUrl = nil
-        setupTask?.cancel()
-        setupTask = nil
-        
-        // Remove any observers
-        NotificationCenter.default.removeObserver(self)
-    }
-    
     private func handlePlaybackError(_ error: Error, for video: Video) {
         print("[VideoPlayer] Handling playback error for video \(video.id): \(error)")
         
@@ -621,11 +621,6 @@ class VideoPlayerCell: UICollectionViewCell {
             ])
             loadingIndicator = indicator
         }
-    }
-    
-    override func prepareForReuse() {
-        super.prepareForReuse()
-        cleanup()
     }
     
     func play() {
