@@ -10,26 +10,33 @@ struct ShortFormFeed: View {
         count: 5)
     
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 0) {
-                ForEach(testVideos.indices, id: \.self) { index in
-                    if let url = URL(string: testVideos[index]) {
-                        ShortFormVideoPlayer(
-                            videoURL: url,
-                            isCurrentlyVisible: viewableRange.contains(index)
-                        )
-                        .frame(height: UIScreen.main.bounds.height)
-                        .id(index)
-                        .onAppear {
-                            currentIndex = index
-                            viewableRange = max(0, index - 1)..<min(testVideos.count, index + 2)
+        ZStack(alignment: .trailing) {
+            // Video feed
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(spacing: 0) {
+                    ForEach(testVideos.indices, id: \.self) { index in
+                        if let url = URL(string: testVideos[index]) {
+                            ShortFormVideoPlayer(
+                                videoURL: url,
+                                isCurrentlyVisible: viewableRange.contains(index)
+                            )
+                            .frame(height: UIScreen.main.bounds.height)
+                            .id(index)
+                            .onAppear {
+                                currentIndex = index
+                                viewableRange = max(0, index - 1)..<min(testVideos.count, index + 2)
+                            }
                         }
                     }
                 }
             }
+            .scrollTargetBehavior(.paging)
+            .ignoresSafeArea()
+            
+            // Fixed overlay that stays on top
+            HomeVideoOverlay(videoUrl: testVideos[currentIndex])
+                .allowsHitTesting(true)
         }
-        .scrollTargetBehavior(.paging)
-        .ignoresSafeArea()
     }
 }
 
