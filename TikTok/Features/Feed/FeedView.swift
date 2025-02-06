@@ -105,13 +105,13 @@ struct FeedView: View {
             }
         }
         .sheet(isPresented: $showComments) {
-            CommentsSheet(video: viewModel.videos[currentIndex]) {
-                if let index = viewModel.videos.firstIndex(where: { $0.id == viewModel.videos[currentIndex].id }) {
-                    viewModel.videos[index].comments += 1
-                    currentInteraction.comments = viewModel.videos[index].comments
-                }
-            }
-            .presentationDetents([.medium, .large])
+            // CommentsSheet(video: viewModel.videos[currentIndex]) {
+            //     if let index = viewModel.videos.firstIndex(where: { $0.id == viewModel.videos[currentIndex].id }) {
+            //         viewModel.videos[index].comments += 1
+            //         currentInteraction.comments = viewModel.videos[index].comments
+            //     }
+            // }
+            // .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showingStackOptions) {
             StackSelectionModal(video: viewModel.videos[currentIndex])

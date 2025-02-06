@@ -4,6 +4,22 @@ struct HomeVideoOverlay: View {
     let videoUrl: String
     @State private var interaction = VideoInteraction(likes: 0, comments: 0, isLiked: false)
     @State private var showStackSelection = false
+    @State private var showComments = false
+    
+    // Add this property to create a Video object for the stack
+    private var video: Video {
+        Video(
+            id: videoUrl, // Using videoUrl as id since that's what we have
+            videoUrl: videoUrl,
+            caption: "", // We don't have this info in the overlay currently
+            createdAt: Date(),
+            userId: "",
+            likes: interaction.likes,
+            comments: interaction.comments,
+            shares: 0,
+            thumbnailUrl: nil
+        )
+    }
     
     var body: some View {
         HStack {
@@ -29,7 +45,9 @@ struct HomeVideoOverlay: View {
                 }
                 
                 // Comments Button
-                Button(action: {}) {
+                Button {
+                    showComments = true
+                } label: {
                     VStack(spacing: 3) {
                         Image(systemName: "message")
                             .font(.system(size: 30))
@@ -74,6 +92,14 @@ struct HomeVideoOverlay: View {
             .padding(.trailing, 16)
         }
         .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 4)
+        .sheet(isPresented: $showComments) {
+            CommentSheet(videoId: videoUrl)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showStackSelection) {
+            StackSelectionModal(video: video)
+        }
     }
     
     // Format counts like 1.2K, 4.5M etc
