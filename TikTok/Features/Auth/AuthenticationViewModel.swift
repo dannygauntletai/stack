@@ -8,6 +8,8 @@ final class AuthenticationViewModel: ObservableObject {
     @Published var password = ""
     @Published var isAuthenticated = false
     @Published var errorMessage: String?
+    @Published var showProfileSetup = false
+    @Published private(set) var currentUser: User?
     
     private let authService: AuthenticationServiceProtocol
     
@@ -33,7 +35,7 @@ final class AuthenticationViewModel: ObservableObject {
         do {
             let _ = try await authService.signUp(withEmail: email, password: password)
             withAnimation {
-                self.isAuthenticated = true
+                self.showProfileSetup = true
                 self.errorMessage = nil
             }
         } catch {

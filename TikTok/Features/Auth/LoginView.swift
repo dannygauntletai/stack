@@ -136,6 +136,9 @@ struct LoginView: View {
                     Spacer()
                 }
             }
+            .fullScreenCover(isPresented: $viewModel.showProfileSetup) {
+                ProfileSetupView()
+            }
             .sheet(isPresented: $showingTerms) {
                 TermsSheet(title: "Terms of Service")
             }
