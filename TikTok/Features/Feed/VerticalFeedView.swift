@@ -230,6 +230,8 @@ class VideoPlayerCell: UICollectionViewCell {
     private var playerLayer: AVPlayerLayer?
     private var cancellables = Set<AnyCancellable>()
     private var currentVideoUrl: String?
+    private var loadingIndicator: UIActivityIndicatorView?
+    private var currentVideo: Video?
     private var setupTask: Task<Void, Never>?
     private var playerStatusObserver: NSKeyValueObservation?
     
@@ -268,6 +270,13 @@ class VideoPlayerCell: UICollectionViewCell {
             print("[VideoPlayer] Invalid video URL format: \(video.videoUrl)")
             return
         }
+        
+        // Store current video for replay
+        currentVideo = video
+        
+        // Setup and show loading indicator
+        setupLoadingIndicator()
+        loadingIndicator?.startAnimating()
         
         // Clean up any existing observation
         playerStatusObserver?.invalidate()
@@ -524,20 +533,42 @@ class VideoPlayerCell: UICollectionViewCell {
     }
     
     private func cleanup() {
+        print("[VideoPlayer] Starting cleanup")
+        loadingIndicator?.stopAnimating()
+        
         cancellables.removeAll()
+        
+        // Cancel any ongoing setup
+        setupTask?.cancel()
+        setupTask = nil
+        
+        // Remove observers
+        if let player = player, let currentItem = player.currentItem {
+            NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: currentItem)
+        }
+        
         player?.pause()
-        playerLayer?.removeFromSuperlayer()
-        playerStatusObserver?.invalidate()
-        playerStatusObserver = nil
+        player?.replaceCurrentItem(with: nil)
         player = nil
+        
+        playerLayer?.removeFromSuperlayer()
         playerLayer = nil
         
-        // Clean up temporary file
+        playerStatusObserver?.invalidate()
+        playerStatusObserver = nil
+        
+        // Clean up temporary files
         if let videoUrl = currentVideoUrl,
            let videoId = videoUrl.components(separatedBy: "/").last?.replacingOccurrences(of: ".mp4", with: "") {
+            // Remove original file
             let tmpURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(videoId).mp4")
             try? FileManager.default.removeItem(at: tmpURL)
+            
+            // Remove transcoded file
+            let transcodedURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("\(videoId)_video_only.mp4")
+            try? FileManager.default.removeItem(at: transcodedURL)
         }
         
         currentVideoUrl = nil
@@ -568,6 +599,21 @@ class VideoPlayerCell: UICollectionViewCell {
             } catch {
                 print("[VideoPlayer] Error during retry: \(error)")
             }
+        }
+    }
+    
+    private func setupLoadingIndicator() {
+        if loadingIndicator == nil {
+            let indicator = UIActivityIndicatorView(style: .large)
+            indicator.color = .white
+            indicator.hidesWhenStopped = true
+            contentView.addSubview(indicator)
+            indicator.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                indicator.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+                indicator.centerYAnchor.constraint(equalTo: contentView.centerYAnchor)
+            ])
+            loadingIndicator = indicator
         }
     }
     
@@ -615,31 +661,44 @@ class VideoPlayerCell: UICollectionViewCell {
                 status = .unknown
             }
             
-            switch status {
-            case .readyToPlay:
-                print("[VideoPlayer] Player item is ready to play")
-                if let playerItem = object as? AVPlayerItem,
-                   playerItem == player?.currentItem,
-                   let video = VideoStateManager.shared.currentVideo,
-                   let currentVideoUrl = currentVideoUrl,
-                   video.videoUrl == currentVideoUrl {
-                    play()
-                }
-            case .failed:
-                if let error = player?.currentItem?.error {
-                    print("[VideoPlayer] Player item failed with error: \(error)")
-                    // Try to recover by recreating the player
-                    if let video = VideoStateManager.shared.currentVideo,
-                       let currentVideoUrl = currentVideoUrl,
-                       video.videoUrl == currentVideoUrl {
-                        cleanup()
-                        setupPlayer(with: video)
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                
+                switch status {
+                case .readyToPlay:
+                    print("[VideoPlayer] Player item is ready to play")
+                    self.loadingIndicator?.stopAnimating()
+                    
+                    if let playerItem = object as? AVPlayerItem,
+                       playerItem == self.player?.currentItem {
+                        // Add looping behavior
+                        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
+                        NotificationCenter.default.addObserver(
+                            forName: .AVPlayerItemDidPlayToEndTime,
+                            object: playerItem,
+                            queue: .main
+                        ) { [weak self] _ in
+                            print("[VideoPlayer] Video finished, restarting")
+                            self?.player?.seek(to: .zero)
+                            self?.player?.play()
+                        }
+                        
+                        self.play()
                     }
+                case .failed:
+                    print("[VideoPlayer] Player item failed with error: \(self.player?.currentItem?.error?.localizedDescription ?? "Unknown error")")
+                    self.loadingIndicator?.stopAnimating()
+                    
+                    // Try to recover by recreating the player
+                    if let video = self.currentVideo {
+                        self.cleanup()
+                        self.setupPlayer(with: video)
+                    }
+                case .unknown:
+                    print("[VideoPlayer] Player item status is unknown")
+                @unknown default:
+                    break
                 }
-            case .unknown:
-                print("[VideoPlayer] Player item status is unknown")
-            @unknown default:
-                break
             }
         }
     }
