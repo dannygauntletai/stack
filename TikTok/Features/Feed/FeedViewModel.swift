@@ -47,7 +47,7 @@ class FeedViewModel: ObservableObject {
                 }
             }
             
-            let fetchedVideos = try await parseVideos(from: snapshot.documents)
+            let fetchedVideos = try parseVideos(from: snapshot.documents)
             
             // Update pagination state
             lastDocument = snapshot.documents.last
@@ -70,7 +70,7 @@ class FeedViewModel: ObservableObject {
             }
         } catch {
             await MainActor.run {
-                self.error = error as? NSError ?? NSError(
+                self.error = (error as NSError).code == NSURLErrorCancelled ? error as NSError : NSError(
                     domain: "FeedViewModel",
                     code: -1,
                     userInfo: [NSLocalizedDescriptionKey: "Failed to fetch videos: \(error.localizedDescription)"]
@@ -91,7 +91,7 @@ class FeedViewModel: ObservableObject {
     }
     
     private func parseVideos(from documents: [QueryDocumentSnapshot]) throws -> [Video] {
-        try documents.compactMap { document -> Video? in
+        documents.compactMap { document -> Video? in
             do {
                 guard let videoUrl = document.get("videoUrl") as? String,
                       let caption = document.get("caption") as? String,
@@ -135,7 +135,7 @@ class FeedViewModel: ObservableObject {
                 .start(afterDocument: lastDoc)
                 .getDocuments()
             
-            let nextVideos = try await parseVideos(from: nextSnapshot.documents)
+            let nextVideos = try parseVideos(from: nextSnapshot.documents)
             
             // Prefetch video URLs
             for video in nextVideos {
@@ -195,7 +195,7 @@ class FeedViewModel: ObservableObject {
                     likedVideoIds.remove(videoId)
                 }
                 
-                self.error = error as? NSError ?? NSError(
+                self.error = (error as NSError).code == NSURLErrorCancelled ? error as NSError : NSError(
                     domain: "FeedViewModel",
                     code: -1,
                     userInfo: [NSLocalizedDescriptionKey: "Failed to toggle like: \(error.localizedDescription)"]

@@ -1,11 +1,12 @@
 import SwiftUI
-import FirebaseStorage
+@preconcurrency import FirebaseStorage
+@preconcurrency import FirebaseAuth
 import FirebaseFirestore
-import FirebaseAuth
 import Network
 import AVFoundation
 
-class VideoUploadViewModel: ObservableObject {
+@MainActor
+final class VideoUploadViewModel: ObservableObject, @unchecked Sendable {
     @Published var isUploading = false
     @Published var uploadStatus: UploadStatus = .ready
     @Published var uploadProgress: Double = 0
@@ -21,7 +22,9 @@ class VideoUploadViewModel: ObservableObject {
     
     init() {
         monitor.pathUpdateHandler = { [weak self] path in
-            self?.isNetworkAvailable = path.status == .satisfied
+            Task { @MainActor [weak self] in
+                self?.isNetworkAvailable = path.status == .satisfied
+            }
         }
         monitor.start(queue: DispatchQueue.global())
     }
@@ -44,7 +47,7 @@ class VideoUploadViewModel: ObservableObject {
         Task {
             do {
                 // Generate thumbnail from original video
-                guard let thumbnail = generateThumbnail(from: url) else {
+                guard let thumbnail = await generateThumbnail(from: url) else {
                     let error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to generate thumbnail"])
                     handleError(error, completion: completion)
                     return
@@ -65,7 +68,7 @@ class VideoUploadViewModel: ObservableObject {
                 ]
                 
                 // First check if video is in correct format
-                let asset = AVAsset(url: url)
+                let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
                 let duration = try await asset.load(.duration)
                 if duration.seconds == 0 {
                     throw NSError(domain: "", code: -1, 
@@ -83,7 +86,7 @@ class VideoUploadViewModel: ObservableObject {
                 taskReference?.observe(.progress) { [weak self] snapshot in
                     let percentComplete = Double(snapshot.progress?.completedUnitCount ?? 0) / 
                         Double(snapshot.progress?.totalUnitCount ?? 1)
-                    DispatchQueue.main.async {
+                    Task { @MainActor [weak self] in
                         self?.uploadProgress = percentComplete
                         self?.uploadStatus = .uploading(progress: percentComplete)
                     }
@@ -91,22 +94,23 @@ class VideoUploadViewModel: ObservableObject {
                 
                 taskReference?.observe(.success) { [weak self] _ in
                     let gsURL = "gs://\(storageRef.bucket)/\(storageRef.fullPath)"
-                    DispatchQueue.main.async {
+                    let uid = currentUser.uid // Capture value type
+                    Task { @MainActor [weak self] in
                         self?.uploadStatus = .savingToFirestore(attempt: 1)
                         self?.saveToFirestore(
                             videoId: videoId,
                             videoURL: gsURL,
                             thumbnailURL: thumbnailURL,
                             caption: caption,
-                            userId: currentUser.uid,
+                            userId: uid,
                             completion: completion
                         )
                     }
                 }
                 
                 taskReference?.observe(.failure) { [weak self] snapshot in
-                    DispatchQueue.main.async {
-                        if let error = snapshot.error {
+                    if let error = snapshot.error {
+                        Task { @MainActor [weak self] in
                             self?.handleError(error, completion: completion)
                         }
                     }
@@ -128,14 +132,14 @@ class VideoUploadViewModel: ObservableObject {
         completion(.failure(error))
     }
     
-    private func generateThumbnail(from url: URL) -> UIImage? {
-        let asset = AVAsset(url: url)
+    private func generateThumbnail(from url: URL) async -> UIImage? {
+        let asset = AVURLAsset(url: url)
         let imageGenerator = AVAssetImageGenerator(asset: asset)
         imageGenerator.appliesPreferredTrackTransform = true
         
         do {
-            let cgImage = try imageGenerator.copyCGImage(at: .zero, actualTime: nil)
-            return UIImage(cgImage: cgImage)
+            let result = try await imageGenerator.image(at: .zero)
+            return UIImage(cgImage: result.image)
         } catch {
             print("Error generating thumbnail: \(error)")
             return nil

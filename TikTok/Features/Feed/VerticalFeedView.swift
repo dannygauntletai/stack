@@ -221,7 +221,7 @@ class VideoDownloadManager {
     }
     
     func finishDownload(_ videoId: String) {
-        queue.sync { activeDownloads.remove(videoId) }
+        _ = queue.sync { activeDownloads.remove(videoId) }
     }
 }
 
@@ -372,28 +372,24 @@ class VideoPlayerCell: UICollectionViewCell {
                                 userInfo: [NSLocalizedDescriptionKey: "Cannot create export session"])
                 }
                 
-                let transcodedURL = FileManager.default.temporaryDirectory
+                let exportURL = FileManager.default.temporaryDirectory
                     .appendingPathComponent("\(video.id)_video_only.mp4")
                 
-                print("[VideoPlayer] Transcoding video-only to: \(transcodedURL.path)")
-                try? FileManager.default.removeItem(at: transcodedURL)
-                
-                exportSession.outputURL = transcodedURL
-                exportSession.outputFileType = .mp4
+                print("[VideoPlayer] Transcoding video-only to: \(exportURL.path)")
+                try? FileManager.default.removeItem(at: exportURL)
                 
                 // Export the video
-                print("[VideoPlayer] Starting export with preset: \(exportSession.presetName ?? "unknown")")
-                await exportSession.export()
-                
-                print("[VideoPlayer] Export status: \(exportSession.status.rawValue)")
-                if let error = exportSession.error {
+                print("[VideoPlayer] Starting export with preset: \(exportSession.presetName)")
+                do {
+                    try await exportSession.export(to: exportURL, as: .mp4)
+                } catch let error {
                     print("[VideoPlayer] Export failed: \(error)")
                     throw error
                 }
                 
-                // Verify transcoded file exists and has content
-                guard FileManager.default.fileExists(atPath: transcodedURL.path),
-                      let attributes = try? FileManager.default.attributesOfItem(atPath: transcodedURL.path),
+                // Verify exported file exists and has content
+                guard FileManager.default.fileExists(atPath: exportURL.path),
+                      let attributes = try? FileManager.default.attributesOfItem(atPath: exportURL.path),
                       let fileSize = attributes[.size] as? UInt64,
                       fileSize > 0 else {
                     throw NSError(domain: "VideoPlayerError", code: -1,
@@ -402,11 +398,11 @@ class VideoPlayerCell: UICollectionViewCell {
                 
                 print("[VideoPlayer] Transcoding complete, file size: \(fileSize) bytes")
                 
-                // Create player from transcoded file
-                let playerItem = AVPlayerItem(url: transcodedURL)
+                // Create player from exported file
+                let playerItem = AVPlayerItem(url: exportURL)
                 playerItem.preferredForwardBufferDuration = 2.0
                 
-                print("[VideoPlayer] Creating player with transcoded URL: \(transcodedURL.path)")
+                print("[VideoPlayer] Creating player with export URL: \(exportURL.path)")
                 
                 // Add item status observation before creating player
                 var itemObservation: NSKeyValueObservation? = nil
@@ -440,7 +436,7 @@ class VideoPlayerCell: UICollectionViewCell {
                         return
                     }
                     
-                    print("[VideoPlayer] Creating player with transcoded URL: \(transcodedURL.path)")
+                    print("[VideoPlayer] Creating player with export URL: \(exportURL.path)")
                     let player = AVPlayer(playerItem: playerItem)
                     
                     // Configure player for better streaming
@@ -546,13 +542,23 @@ class VideoPlayerCell: UICollectionViewCell {
         if let player = player, let currentItem = player.currentItem {
             NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: currentItem)
         }
+        playerStatusObserver?.invalidate()
+        playerStatusObserver = nil
         
+        // Cleanup player
         player?.pause()
         player?.replaceCurrentItem(with: nil)
         player = nil
         
+        // Cleanup UI
         playerLayer?.removeFromSuperlayer()
         playerLayer = nil
+        loadingIndicator?.removeFromSuperview()
+        loadingIndicator = nil
+        
+        // Reset state
+        currentVideoUrl = nil
+        currentVideo = nil
         
         playerStatusObserver?.invalidate()
         playerStatusObserver = nil
@@ -623,16 +629,16 @@ class VideoPlayerCell: UICollectionViewCell {
     }
     
     func play() {
-        guard let player = player else {
-            print("[VideoPlayer] Cannot play - player is nil")
-            return
-        }
-        
-        // Only play if this cell's video matches the current video
-        if let currentVideo = VideoStateManager.shared.currentVideo,
-           currentVideo.videoUrl == currentVideoUrl {
-            print("[VideoPlayer] Playing video: \(currentVideo.id)")
-            player.play()
+        if let player = player {
+            // Only play if this cell's video matches the current video
+            if let currentVideo = VideoStateManager.shared.currentVideo,
+               currentVideo.videoUrl == currentVideoUrl {
+                print("[VideoPlayer] Playing video: \(currentVideo.id)")
+                player.play()
+            }
+        } else if let currentVideo = currentVideo {
+            print("[VideoPlayer] Player not ready, setting up for: \(currentVideo.id)")
+            setupPlayer(with: currentVideo)
         } else {
             print("[VideoPlayer] Not playing - video mismatch")
         }

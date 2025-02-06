@@ -291,20 +291,23 @@ class VideoPlayerViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
+    @MainActor
     private func configureTimeObserver(for player: AVPlayer) {
         // Add time observer to monitor playback progress
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] _ in
-            guard let self = self else { return }
-            
-            if let currentItem = self.player.currentItem {
-                // Check if we need to preload the next chunk
-                let duration = currentItem.duration.seconds
-                let currentTime = currentItem.currentTime().seconds
-                let timeRemaining = duration - currentTime
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
                 
-                if timeRemaining < 1.0 && !self.isBuffering {
-                    self.player.preroll(atRate: 1.0)
+                if let currentItem = player.currentItem {
+                    // Check if we need to preload the next chunk
+                    let duration = currentItem.duration.seconds
+                    let currentTime = currentItem.currentTime().seconds
+                    let timeRemaining = duration - currentTime
+                    
+                    if timeRemaining < 1.0 && !self.isBuffering {
+                        player.preroll(atRate: 1.0)
+                    }
                 }
             }
         }
