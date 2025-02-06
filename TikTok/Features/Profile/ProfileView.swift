@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseStorage
 
 struct ProfileView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
@@ -153,6 +154,7 @@ struct VideoThumbnail: View {
     let video: Video
     @State private var showVideo = false
     @State private var thumbnailURL: URL?
+    @State private var isLoadingThumbnail = false
     
     var body: some View {
         ZStack {
@@ -181,6 +183,12 @@ struct VideoThumbnail: View {
                 }
             } else {
                 placeholderView
+                    .overlay {
+                        if isLoadingThumbnail {
+                            ProgressView()
+                                .tint(.white)
+                        }
+                    }
             }
         }
         .frame(width: UIScreen.main.bounds.width / 3, height: UIScreen.main.bounds.width / 3)
@@ -188,10 +196,8 @@ struct VideoThumbnail: View {
         .onTapGesture {
             showVideo = true
         }
-        .onAppear {
-            if let urlString = video.thumbnailUrl {
-                thumbnailURL = URL(string: urlString)
-            }
+        .task {
+            await loadThumbnail()
         }
         .fullScreenCover(isPresented: $showVideo) {
             NavigationStack {
@@ -203,6 +209,37 @@ struct VideoThumbnail: View {
                 .navigationBarHidden(true)
                 .ignoresSafeArea()
             }
+        }
+    }
+    
+    private func loadThumbnail() async {
+        guard let thumbnailUrlString = video.thumbnailUrl else { return }
+        
+        // If it's already a regular URL, use it directly
+        if thumbnailUrlString.hasPrefix("http") {
+            thumbnailURL = URL(string: thumbnailUrlString)
+            return
+        }
+        
+        // Handle gs:// URLs
+        guard thumbnailUrlString.hasPrefix("gs://") else { return }
+        
+        isLoadingThumbnail = true
+        defer { isLoadingThumbnail = false }
+        
+        do {
+            let storage = Storage.storage()
+            let storageRef = storage.reference(forURL: thumbnailUrlString)
+            
+            // Get the download URL
+            let downloadURL = try await storageRef.downloadURL()
+            
+            // Update the thumbnail URL on the main thread
+            await MainActor.run {
+                thumbnailURL = downloadURL
+            }
+        } catch {
+            print("Error loading thumbnail for video \(video.id): \(error)")
         }
     }
     
