@@ -11,12 +11,15 @@ struct ShortFormPlayer: UIViewRepresentable {
         let parent: ShortFormPlayer
         var player: AVPlayer?
         var playerLayer: AVPlayerLayer?
+        var looper: AVPlayerLooper?  // Add AVPlayerLooper
         
         init(_ parent: ShortFormPlayer) {
             self.parent = parent
         }
         
         func cleanup() {
+            looper?.disableLooping()  // Cleanup looper
+            looper = nil
             player?.pause()
             player = nil
             playerLayer?.removeFromSuperlayer()
@@ -32,29 +35,37 @@ struct ShortFormPlayer: UIViewRepresentable {
         let view = UIView(frame: UIScreen.main.bounds)
         view.backgroundColor = .black
         
-        // Create player
-        let player = AVPlayer(url: url)
-        player.automaticallyWaitsToMinimizeStalling = true
-        
-        // Create layer
-        let playerLayer = AVPlayerLayer(player: player)
-        playerLayer.videoGravity = .resizeAspectFill
-        playerLayer.frame = UIScreen.main.bounds
-        view.layer.addSublayer(playerLayer)
-        
-        // Store references
-        context.coordinator.player = player
-        context.coordinator.playerLayer = playerLayer
-        
-        // Configure looping
-        NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: player.currentItem,
-            queue: .main
-        ) { _ in
-            player.seek(to: .zero)
-            if context.coordinator.parent.isPlaying {
-                player.play()
+        // Load video asynchronously
+        Task {
+            do {
+                let asset = try await VideoCache.shared.getVideo(for: url)
+                
+                await MainActor.run {
+                    // Create player with queue player for looping
+                    let playerItem = AVPlayerItem(asset: asset)
+                    let queuePlayer = AVQueuePlayer(playerItem: playerItem)
+                    
+                    // Create looper
+                    let looper = AVPlayerLooper(player: queuePlayer, templateItem: playerItem)
+                    context.coordinator.looper = looper
+                    
+                    // Create and configure player layer
+                    let playerLayer = AVPlayerLayer(player: queuePlayer)
+                    playerLayer.videoGravity = .resizeAspectFill
+                    playerLayer.frame = UIScreen.main.bounds
+                    view.layer.addSublayer(playerLayer)
+                    
+                    // Store references
+                    context.coordinator.player = queuePlayer
+                    context.coordinator.playerLayer = playerLayer
+                    
+                    // Start playing if needed
+                    if isPlaying {
+                        queuePlayer.play()
+                    }
+                }
+            } catch {
+                print("Error loading video: \(error)")
             }
         }
         
