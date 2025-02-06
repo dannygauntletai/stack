@@ -16,16 +16,23 @@ struct ShortFormFeed: View {
                 LazyVStack(spacing: 0) {
                     ForEach(testVideos.indices, id: \.self) { index in
                         if let url = URL(string: testVideos[index]) {
-                            ShortFormVideoPlayer(
-                                videoURL: url,
-                                isCurrentlyVisible: viewableRange.contains(index)
-                            )
-                            .frame(height: UIScreen.main.bounds.height)
-                            .id(index)
-                            .onAppear {
-                                currentIndex = index
-                                viewableRange = max(0, index - 1)..<min(testVideos.count, index + 2)
+                            GeometryReader { geometry in
+                                let minY = geometry.frame(in: .global).minY
+                                let height = UIScreen.main.bounds.height
+                                let visibility = calculateVisibility(minY: minY, height: height)
+                                
+                                ShortFormVideoPlayer(
+                                    videoURL: url,
+                                    visibility: visibility
+                                )
+                                .onChange(of: visibility) { newVisibility in
+                                    if newVisibility.isFullyVisible {
+                                        currentIndex = index
+                                        viewableRange = max(0, index - 1)..<min(testVideos.count, index + 2)
+                                    }
+                                }
                             }
+                            .frame(height: UIScreen.main.bounds.height)
                         }
                     }
                 }
@@ -38,6 +45,25 @@ struct ShortFormFeed: View {
                 .allowsHitTesting(true)
         }
     }
+    
+    private func calculateVisibility(minY: CGFloat, height: CGFloat) -> VideoVisibility {
+        let threshold: CGFloat = 0.5 // 50% visibility threshold
+        let visibleHeight = height - abs(minY)
+        let visibilityPercentage = visibleHeight / height
+        
+        return VideoVisibility(
+            isFullyVisible: abs(minY) < height * 0.5, // More lenient threshold
+            isPartiallyVisible: visibilityPercentage >= threshold,
+            visibilityPercentage: max(0, min(1, visibilityPercentage))
+        )
+    }
+}
+
+// Video visibility state
+struct VideoVisibility: Equatable {
+    let isFullyVisible: Bool
+    let isPartiallyVisible: Bool
+    let visibilityPercentage: CGFloat
 }
 
 #Preview {

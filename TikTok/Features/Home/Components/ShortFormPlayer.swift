@@ -93,17 +93,19 @@ struct ShortFormPlayer: UIViewRepresentable {
 // Container view to handle video player lifecycle
 struct ShortFormVideoPlayer: View {
     let videoURL: URL
-    let isCurrentlyVisible: Bool
+    let visibility: VideoVisibility
     @State private var isPlaying: Bool = false
     
     var body: some View {
         ShortFormPlayer(url: videoURL, isPlaying: $isPlaying)
             .ignoresSafeArea()
-            .onChange(of: isCurrentlyVisible) { newValue in
-                isPlaying = newValue
+            .onChange(of: visibility) { newVisibility in
+                // More immediate playback
+                isPlaying = newVisibility.visibilityPercentage > 0.5
             }
             .onAppear {
-                isPlaying = isCurrentlyVisible
+                // Start playing immediately if mostly visible
+                isPlaying = visibility.visibilityPercentage > 0.5
             }
             .onDisappear {
                 isPlaying = false
@@ -113,9 +115,16 @@ struct ShortFormVideoPlayer: View {
 
 #Preview {
     // Sample video URL for preview
-    let sampleURL = URL(string: "hhttps://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_30MB.mp4")!
+    let sampleURL = URL(string: "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_30MB.mp4")!
     
-    return ShortFormVideoPlayer(videoURL: sampleURL, isCurrentlyVisible: true)
-        .frame(height: 400)
-        .preferredColorScheme(.dark)
+    return ShortFormVideoPlayer(
+        videoURL: sampleURL,
+        visibility: VideoVisibility(
+            isFullyVisible: true,
+            isPartiallyVisible: true,
+            visibilityPercentage: 1.0
+        )
+    )
+    .frame(height: 400)
+    .preferredColorScheme(.dark)
 } 
