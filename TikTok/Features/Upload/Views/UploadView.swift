@@ -14,12 +14,7 @@ struct UploadView: View {
                 Color.black.ignoresSafeArea()
                 
                 VStack(spacing: 24) {
-                    // Header text
-                    Text("Upload video")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .padding(.top, 20)
+                    NavigationTitleView(title: "Upload")
                     
                     // Upload options
                     VStack(spacing: 16) {

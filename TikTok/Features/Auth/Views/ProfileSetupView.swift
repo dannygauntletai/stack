@@ -12,6 +12,8 @@ struct ProfileSetupView: View {
                 Color.black.ignoresSafeArea()
                 
                 VStack(spacing: 32) {
+                    NavigationTitleView(title: "Profile Setup")
+                    
                     // Header
                     VStack(spacing: 12) {
                         PhotosPicker(selection: $viewModel.selectedItem, matching: .images) {
