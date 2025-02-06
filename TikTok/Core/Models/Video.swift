@@ -30,16 +30,4 @@ struct Video: Identifiable {
         
         return dict
     }
-    
-    // For testing purposes
-    static let example = Video(
-        id: UUID().uuidString,
-        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-        caption: "Test video #fun",
-        createdAt: Date(),
-        userId: UUID().uuidString,
-        likes: 100,
-        comments: 50,
-        shares: 0
-    )
 } 
