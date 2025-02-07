@@ -6,6 +6,16 @@ struct HomeVideoOverlay: View {
     @State private var showStackSelection = false
     @State private var showComments = false
     
+    // Sample metadata for test videos
+    private var metadata: (username: String, caption: String, profileImage: String?, tags: [String]) {
+        (
+            username: "creator123",
+            caption: "Check out this awesome video! 🎥",
+            profileImage: "https://picsum.photos/200",
+            tags: ["Trending", "Viral"]  // Capitalized for better visual appearance
+        )
+    }
+    
     // Add this property to create a Video object for the stack
     private var video: Video {
         Video(
@@ -22,12 +32,19 @@ struct HomeVideoOverlay: View {
     }
     
     var body: some View {
-        HStack {
-            Spacer()
+        ZStack(alignment: .trailing) {
+            // Left side metadata
+            VideoMetadataOverlay(
+                username: metadata.username,
+                caption: metadata.caption,
+                profileImageUrl: metadata.profileImage,
+                tags: metadata.tags
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
             
+            // Right side interaction buttons
             VStack(spacing: 20) {
                 Spacer()
-                    .frame(height: UIScreen.main.bounds.height * 0.45)
                 
                 // Like Button
                 Button {
@@ -87,7 +104,7 @@ struct HomeVideoOverlay: View {
                 }
                 
                 Spacer()
-                    .frame(height: 50)
+                    .frame(height: 150)
             }
             .padding(.trailing, 16)
         }
