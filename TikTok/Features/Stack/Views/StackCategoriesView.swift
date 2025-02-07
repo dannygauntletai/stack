@@ -65,6 +65,7 @@ struct StackCategoriesView: View {
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 8)
         }
+        .navigationTitle("Stacks")
         .task {
             await viewModel.fetchCategories()
             await viewModel.fetchStackCounts()

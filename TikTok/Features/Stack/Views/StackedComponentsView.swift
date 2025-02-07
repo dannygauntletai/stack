@@ -6,7 +6,7 @@ struct StackedComponentsView: View {
     let category: StackCategory
     @StateObject private var viewModel = StackedComponentsViewModel()
     @State private var selectedVideo: Video? = nil
-    @State private var showVideo = false
+    @State private var showHealthAnalysis = false
     
     private let columns = [
         GridItem(.flexible(), spacing: 8),
@@ -24,10 +24,20 @@ struct StackedComponentsView: View {
             } else {
                 LazyVGrid(columns: columns, spacing: 8) {
                     ForEach(viewModel.videos) { video in
-                        ThumbnailCard(video: video, category: category) {
-                            selectedVideo = video
-                            showVideo = true
+                        NavigationLink(
+                            destination: HealthAnalysisView(
+                                video: video,
+                                viewModel: viewModel,
+                                isPresented: $showHealthAnalysis
+                            )
+                        ) {
+                            ThumbnailCard(
+                                video: video,
+                                category: category,
+                                viewModel: viewModel
+                            )
                         }
+                        .buttonStyle(ThumbnailButtonStyle())
                     }
                 }
                 .padding(.horizontal, 12)
@@ -35,16 +45,12 @@ struct StackedComponentsView: View {
         }
         .background(Color.black)
         .navigationTitle(category.name)
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.fetchVideos(for: category.id)
         }
         .refreshable {
             await viewModel.fetchVideos(for: category.id)
-        }
-        .fullScreenCover(isPresented: $showVideo) {
-            if let video = selectedVideo {
-                VideoPlayerView(video: video, isPresented: $showVideo)
-            }
         }
     }
 }
@@ -52,43 +58,59 @@ struct StackedComponentsView: View {
 private struct ThumbnailCard: View {
     let video: Video
     let category: StackCategory
-    let action: () -> Void
+    @ObservedObject var viewModel: StackedComponentsViewModel
     
     private let size = (UIScreen.main.bounds.width - 32) / 2
     
     var body: some View {
-        Button(action: action) {
-            ZStack(alignment: .topTrailing) {
-                // Thumbnail
-                Group {
-                    if let thumbnailUrl = video.thumbnailUrl {
-                        StorageImageView(gsURL: thumbnailUrl) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            thumbnailPlaceholder
-                        }
-                    } else {
+        ZStack(alignment: .bottomTrailing) {
+            // Thumbnail
+            Group {
+                if let thumbnailUrl = video.thumbnailUrl {
+                    StorageImageView(gsURL: thumbnailUrl) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
                         thumbnailPlaceholder
                     }
+                } else {
+                    thumbnailPlaceholder
                 }
-                .frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                
-                // Score indicator
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 12))
-                    Text("\(video.likes + video.comments)")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundColor(.white)
-                .padding(8)
-                .shadow(color: .black.opacity(0.3), radius: 3)
             }
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            
+            // Health Impact Score indicator
+            HStack(spacing: 4) {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 12))
+                Text(healthImpactText)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(healthImpactColor)
+            .padding(8)
+            .background(.black.opacity(0.3))
+            .cornerRadius(8)
+            .padding(4)
         }
-        .buttonStyle(ThumbnailButtonStyle())
+    }
+    
+    private var healthImpactText: String {
+        if let healthImpactScore = viewModel.healthImpactScore(for: video.id) {
+            return "\(Int(healthImpactScore))"
+        }
+        return "..."
+    }
+    
+    private var healthImpactColor: Color {
+        guard let score = viewModel.healthImpactScore(for: video.id) else { return .gray }
+        switch score {
+        case ..<0: return .red
+        case 0..<3: return .orange
+        case 3..<7: return .yellow
+        default: return .green
+        }
     }
     
     private var thumbnailPlaceholder: some View {
@@ -107,31 +129,6 @@ private struct ThumbnailButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .animation(.spring(duration: 0.2), value: configuration.isPressed)
-    }
-}
-
-private struct VideoPlayerView: View {
-    let video: Video
-    @Binding var isPresented: Bool
-    
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            ShortFormFeed(initialVideo: video)
-                .ignoresSafeArea()
-            
-            Button {
-                isPresented = false
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(12)
-                    .background(.black.opacity(0.3))
-                    .clipShape(Circle())
-            }
-            .padding(.top, 60)
-            .padding(.leading, 16)
-        }
     }
 }
 
@@ -161,8 +158,19 @@ private struct EmptyStateView: View {
 final class StackedComponentsViewModel: ObservableObject {
     @Published private(set) var videos: [Video] = []
     @Published private(set) var isLoading = false
+    @Published private var healthData: [String: HealthAnalysis] = [:]
+    @Published private var healthImpactScores: [String: Double] = [:]
     
     private let db = Firestore.firestore()
+    
+    func healthImpactScore(for videoId: String) -> Double? {
+        return healthImpactScores[videoId]
+    }
+    
+    // Now this can be public too since HealthAnalysis is public
+    func healthAnalysis(for videoId: String) -> HealthAnalysis? {
+        return healthData[videoId]
+    }
     
     func fetchVideos(for categoryId: String) async {
         guard let userId = Auth.auth().currentUser?.uid else { return }
@@ -192,6 +200,32 @@ final class StackedComponentsViewModel: ObservableObject {
             let videosSnapshot = try await videosRef.getDocuments()
             self.videos = videosSnapshot.documents.compactMap { doc in
                 let data = doc.data()
+                
+                // Parse health analysis data
+                if let healthAnalysisData = data["healthAnalysis"] as? [String: Any] {
+                    print("Raw health analysis data for video \(doc.documentID):")
+                    print(healthAnalysisData)
+                    
+                    if let healthAnalysisJson = try? JSONSerialization.data(withJSONObject: healthAnalysisData) {
+                        do {
+                            let healthAnalysis = try JSONDecoder().decode(HealthAnalysis.self, from: healthAnalysisJson)
+                            print("Successfully parsed health analysis:")
+                            print("Content type: \(healthAnalysis.contentType)")
+                            print("Summary: \(healthAnalysis.summary)")
+                            print("Benefits count: \(healthAnalysis.benefits.count)")
+                            healthData[doc.documentID] = healthAnalysis
+                        } catch {
+                            print("Failed to decode health analysis: \(error)")
+                        }
+                    }
+                }
+                
+                // Store the health impact score
+                if let score = data["healthImpactScore"] as? Double {
+                    print("Health Impact Score for video \(doc.documentID): \(score)")
+                    healthImpactScores[doc.documentID] = score
+                }
+                
                 return Video(
                     id: doc.documentID,
                     videoUrl: data["videoUrl"] as? String ?? "",
@@ -209,6 +243,7 @@ final class StackedComponentsViewModel: ObservableObject {
                     thumbnailUrl: data["thumbnailUrl"] as? String
                 )
             }
+            
         } catch {
             print("Error fetching stacked videos: \(error)")
             self.videos = []

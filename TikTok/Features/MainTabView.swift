@@ -42,6 +42,7 @@ struct MainTabView: View {
                 .tag(4)
         }
         .tint(.white)
+        .background(Color.black)
         .onAppear {
             // Set white color for unselected items
             UITabBar.appearance().unselectedItemTintColor = .white.withAlphaComponent(0.5)
@@ -50,6 +51,7 @@ struct MainTabView: View {
             // Configure tab bar appearance
             let tabBarAppearance = UITabBarAppearance()
             tabBarAppearance.configureWithTransparentBackground()
+            tabBarAppearance.backgroundColor = .black
             
             // Set colors for text and icons
             tabBarAppearance.stackedLayoutAppearance.normal.iconColor = .white.withAlphaComponent(0.5)

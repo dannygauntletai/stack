@@ -6,11 +6,11 @@ struct Video: Identifiable {
     let caption: String
     let createdAt: Date
     let userId: String
-    let author: VideoAuthor  // Add author
+    let author: VideoAuthor
     var likes: Int
     var comments: Int
     var shares: Int
-    var thumbnailUrl: String?  // Optional thumbnail URL
+    let thumbnailUrl: String?
     
     var dictionary: [String: Any] {
         var dict: [String: Any] = [
@@ -26,11 +26,34 @@ struct Video: Identifiable {
             "profileImageUrl": author.profileImageUrl as Any
         ]
         
-        // Make sure thumbnailUrl is included when present
         if let thumbnailUrl = thumbnailUrl {
             dict["thumbnailUrl"] = thumbnailUrl
         }
         
         return dict
+    }
+    
+    init(
+        id: String,
+        videoUrl: String,
+        caption: String,
+        createdAt: Date,
+        userId: String,
+        author: VideoAuthor,
+        likes: Int,
+        comments: Int,
+        shares: Int,
+        thumbnailUrl: String?
+    ) {
+        self.id = id
+        self.videoUrl = videoUrl
+        self.caption = caption
+        self.createdAt = createdAt
+        self.userId = userId
+        self.author = author
+        self.likes = likes
+        self.comments = comments
+        self.shares = shares
+        self.thumbnailUrl = thumbnailUrl
     }
 } 
