@@ -46,6 +46,7 @@ struct VideoMetadataOverlay: View {
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
                             .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
+                            .padding(.top, 2)
                         
                         Button {
                             isFollowing.toggle()
