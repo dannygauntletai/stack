@@ -271,14 +271,23 @@ struct VideoThumbnail: View {
             await loadThumbnail()
         }
         .fullScreenCover(isPresented: $showVideo) {
-            NavigationStack {
-                FeedView(
-                    initialVideo: video,
-                    isDeepLinked: true,
-                    onBack: { showVideo = false }
-                )
-                .navigationBarHidden(true)
-                .ignoresSafeArea()
+            ZStack(alignment: .topLeading) {
+                ShortFormFeed(initialVideo: video)
+                    .ignoresSafeArea()
+                
+                // Back button
+                Button {
+                    showVideo = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(12)
+                        .background(.black.opacity(0.3))
+                        .clipShape(Circle())
+                }
+                .padding(.top, 60)
+                .padding(.leading, 16)
             }
         }
     }

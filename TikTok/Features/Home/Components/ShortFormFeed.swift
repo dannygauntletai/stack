@@ -4,18 +4,31 @@ struct ShortFormFeed: View {
     @State private var currentIndex = 0
     @State private var viewableRange: Range<Int> = 0..<1
     
-    // Test video URLs
-    let testVideos = Array(repeating: 
-        "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_30MB.mp4", 
-        count: 5)
+    // Add initialVideo parameter
+    let initialVideo: Video?
+    
+    // Initialize videos array based on whether we have an initial video
+    var videos: [String] {
+        if let initialVideo = initialVideo {
+            return [initialVideo.videoUrl]
+        }
+        return Array(repeating: 
+            "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_30MB.mp4", 
+            count: 5)
+    }
+    
+    // Add initializer with default value
+    init(initialVideo: Video? = nil) {
+        self.initialVideo = initialVideo
+    }
     
     var body: some View {
         ZStack(alignment: .trailing) {
             // Video feed
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 0) {
-                    ForEach(testVideos.indices, id: \.self) { index in
-                        if let url = URL(string: testVideos[index]) {
+                    ForEach(videos.indices, id: \.self) { index in
+                        if let url = URL(string: videos[index]) {
                             GeometryReader { geometry in
                                 let minY = geometry.frame(in: .global).minY
                                 let height = UIScreen.main.bounds.height
@@ -28,7 +41,7 @@ struct ShortFormFeed: View {
                                 .onChange(of: visibility) { newVisibility in
                                     if newVisibility.isFullyVisible {
                                         currentIndex = index
-                                        viewableRange = max(0, index - 1)..<min(testVideos.count, index + 2)
+                                        viewableRange = max(0, index - 1)..<min(videos.count, index + 2)
                                     }
                                 }
                             }
@@ -41,7 +54,7 @@ struct ShortFormFeed: View {
             .ignoresSafeArea()
             
             // Fixed overlay that stays on top
-            HomeVideoOverlay(videoUrl: testVideos[currentIndex])
+            HomeVideoOverlay(videoUrl: videos[currentIndex])
                 .allowsHitTesting(true)
         }
     }

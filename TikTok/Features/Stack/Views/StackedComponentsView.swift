@@ -5,6 +5,8 @@ import FirebaseAuth
 struct StackedComponentsView: View {
     let category: StackCategory
     @StateObject private var viewModel = StackedComponentsViewModel()
+    @State private var selectedVideo: Video? = nil
+    @State private var showVideo = false
     
     let columns = [
         GridItem(.flexible()),
@@ -22,8 +24,9 @@ struct StackedComponentsView: View {
             } else {
                 LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(viewModel.videos) { video in
-                        NavigationLink {
-                            FeedView(initialVideo: video)
+                        Button {
+                            selectedVideo = video
+                            showVideo = true
                         } label: {
                             VideoCard(video: video, category: category)
                         }
@@ -40,6 +43,28 @@ struct StackedComponentsView: View {
         }
         .refreshable {
             await viewModel.fetchVideos(for: category.id)
+        }
+        .fullScreenCover(isPresented: $showVideo) {
+            ZStack(alignment: .topLeading) {
+                if let video = selectedVideo {
+                    ShortFormFeed(initialVideo: video)
+                        .ignoresSafeArea()
+                }
+                
+                // Back button
+                Button {
+                    showVideo = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(12)
+                        .background(.black.opacity(0.3))
+                        .clipShape(Circle())
+                }
+                .padding(.top, 60)
+                .padding(.leading, 16)
+            }
         }
     }
 }
