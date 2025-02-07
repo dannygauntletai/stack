@@ -28,10 +28,10 @@ struct VideoMetadataOverlay: View {
         
         // If not own video, check follow status
         if !isOwnVideo {
-            db.collection("followers")
-                .document(author.id)
-                .collection("userFollowers")
+            db.collection("users")
                 .document(currentUserId)
+                .collection("following")
+                .document(author.id)
                 .getDocument { document, error in
                     DispatchQueue.main.async {
                         isFollowing = document?.exists ?? false
@@ -49,15 +49,15 @@ struct VideoMetadataOverlay: View {
         
         let batch = db.batch()
         
-        // References for both collections
-        let followerRef = db.collection("followers")
+        // References for both collections - need to update these paths
+        let followerRef = db.collection("users")
             .document(author.id)
-            .collection("userFollowers")
+            .collection("followers")
             .document(currentUserId)
         
-        let followingRef = db.collection("following")
+        let followingRef = db.collection("users")
             .document(currentUserId)
-            .collection("userFollowing")
+            .collection("following")
             .document(author.id)
         
         if isFollowing {

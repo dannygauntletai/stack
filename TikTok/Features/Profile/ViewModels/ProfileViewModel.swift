@@ -33,7 +33,7 @@ class ProfileViewModel: ObservableObject {
         guard let userId = Auth.auth().currentUser?.uid else { return }
         
         do {
-            // Fetch user data and stats
+            // Fetch user data
             let userDoc = try await db.collection("users").document(userId).getDocument()
             if let userData = userDoc.data() {
                 // Get followers count
@@ -54,19 +54,11 @@ class ProfileViewModel: ObservableObject {
                     .collection("restacks")
                     .getDocuments()
                 
-                let followersCount = followersSnapshot.documents
-                    .filter { $0.documentID != "placeholder" }
-                    .count
+                let followersCount = followersSnapshot.documents.count
+                let followingCount = followingSnapshot.documents.count
+                let restacksCount = restacksSnapshot.documents.count
                 
-                let followingCount = followingSnapshot.documents
-                    .filter { $0.documentID != "placeholder" }
-                    .count
-                
-                let restacksCount = restacksSnapshot.documents
-                    .filter { $0.documentID != "placeholder" }
-                    .count
-                
-                // Create user with complete data from Firestore
+                // Create user with updated counts
                 self.user = User(
                     uid: userId,
                     username: userData["username"] as? String ?? "",
