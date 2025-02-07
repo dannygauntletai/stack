@@ -8,6 +8,9 @@ struct User: Identifiable {
     let email: String
     let profileImageUrl: String?
     let createdAt: Date
+    var followersCount: Int
+    var followingCount: Int
+    var restacksCount: Int
     
     // For Identifiable protocol
     var id: String { uid }
@@ -26,7 +29,10 @@ struct User: Identifiable {
             "lastName": lastName,
             "email": email,
             "profileImageUrl": profileImageUrl ?? "",
-            "createdAt": createdAt
+            "createdAt": createdAt,
+            "followersCount": followersCount,
+            "followingCount": followingCount,
+            "restacksCount": restacksCount
         ]
     }
 }
@@ -40,6 +46,9 @@ extension User {
         lastName: "Doe",
         email: "john@example.com",
         profileImageUrl: nil,
-        createdAt: Date()
+        createdAt: Date(),
+        followersCount: 0,
+        followingCount: 0,
+        restacksCount: 0
     )
 } 

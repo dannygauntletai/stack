@@ -10,6 +10,7 @@ protocol AuthenticationServiceProtocol {
     func signOut() throws
     var currentUser: FirebaseAuth.User? { get }
     func createUserProfile(username: String, firstName: String, lastName: String, profileImage: UIImage?) async throws
+    func createUser(email: String, password: String, username: String, firstName: String, lastName: String) async throws -> User
 }
 
 final class AuthenticationService: AuthenticationServiceProtocol {
@@ -56,13 +57,60 @@ final class AuthenticationService: AuthenticationServiceProtocol {
             lastName: lastName,
             email: email,
             profileImageUrl: profileImageUrl,
-            createdAt: Date()
+            createdAt: Date(),
+            followersCount: 0,
+            followingCount: 0,
+            restacksCount: 0
         )
         
         // Save to Firestore using dictionary
-        try await Firestore.firestore()
-            .collection("users")
-            .document(uid)
-            .setData(user.asDictionary)
+        let db = Firestore.firestore()
+        let userRef = db.collection("users").document(uid)
+        
+        // Save user data
+        try await userRef.setData(user.asDictionary)
+        
+        // Initialize empty collections with placeholder documents
+        try await userRef.collection("followers").document("placeholder").setData(["createdAt": Date()])
+        try await userRef.collection("following").document("placeholder").setData(["createdAt": Date()])
+        try await userRef.collection("restacks").document("placeholder").setData(["createdAt": Date()])
+    }
+    
+    func createUser(email: String, password: String, username: String, firstName: String, lastName: String) async throws -> User {
+        do {
+            // Create Firebase Auth account
+            let result = try await Auth.auth().createUser(withEmail: email, password: password)
+            let uid = result.user.uid
+            
+            // Create user document
+            let user = User(
+                uid: uid,
+                username: username,
+                firstName: firstName,
+                lastName: lastName,
+                email: email,
+                profileImageUrl: nil,
+                createdAt: Date(),
+                followersCount: 0,
+                followingCount: 0,
+                restacksCount: 0
+            )
+            
+            // Save user data to Firestore
+            try await Firestore.firestore().collection("users").document(uid).setData(user.asDictionary)
+            
+            // Initialize empty collections for social stats
+            let db = Firestore.firestore()
+            let userRef = db.collection("users").document(uid)
+            
+            // Create empty collections with a placeholder document
+            try await userRef.collection("followers").document("placeholder").setData(["createdAt": Date()])
+            try await userRef.collection("following").document("placeholder").setData(["createdAt": Date()])
+            try await userRef.collection("restacks").document("placeholder").setData(["createdAt": Date()])
+            
+            return user
+        } catch {
+            throw error
+        }
     }
 } 

@@ -6,6 +6,8 @@ struct ProfileView: View {
     @StateObject private var viewModel = ProfileViewModel()
     @State private var selectedTab = 0
     @State private var showingMenu = false
+    @State private var profileImageURL: URL?
+    @State private var isLoadingProfileImage = false
     
     var body: some View {
         NavigationView {
@@ -13,24 +15,49 @@ struct ProfileView: View {
                 // Fixed Header
                 VStack(spacing: 20) {
                     // Profile Image
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 96, height: 96)
-                        .overlay(
-                            Image(systemName: "person.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(.white)
-                        )
+                    if let url = profileImageURL {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 96, height: 96)
+                                    .clipShape(Circle())
+                            case .failure, .empty:
+                                fallbackProfileImage
+                            @unknown default:
+                                fallbackProfileImage
+                            }
+                        }
+                    } else {
+                        fallbackProfileImage
+                            .overlay {
+                                if isLoadingProfileImage {
+                                    ProgressView()
+                                        .tint(.white)
+                                }
+                            }
+                    }
                     
                     // Username
-                    Text("@username")
+                    Text("@\(viewModel.user?.username ?? "username")")
                         .font(.headline)
                     
                     // Stats Row
                     HStack(spacing: 40) {
-                        StatColumn(count: "42", title: "Following")
-                        StatColumn(count: "8.2K", title: "Followers")
-                        StatColumn(count: "102K", title: "Likes")
+                        StatColumn(
+                            count: "\(viewModel.user?.followingCount ?? 0)", 
+                            title: "Following"
+                        )
+                        StatColumn(
+                            count: "\(viewModel.user?.followersCount ?? 0)", 
+                            title: "Followers"
+                        )
+                        StatColumn(
+                            count: "\(viewModel.user?.restacksCount ?? 0)", 
+                            title: "Restacks"
+                        )
                     }
                     
                     // Edit Profile Button
@@ -113,7 +140,51 @@ struct ProfileView: View {
         }
         .task {
             await viewModel.fetchUserContent()
+            await loadProfileImage()
         }
+    }
+    
+    private func loadProfileImage() async {
+        guard let profileImageUrlString = viewModel.user?.profileImageUrl else { return }
+        
+        // If it's already a regular URL, use it directly
+        if profileImageUrlString.hasPrefix("http") {
+            profileImageURL = URL(string: profileImageUrlString)
+            return
+        }
+        
+        // Handle gs:// URLs
+        guard profileImageUrlString.hasPrefix("gs://") else { return }
+        
+        isLoadingProfileImage = true
+        defer { isLoadingProfileImage = false }
+        
+        do {
+            let storage = Storage.storage()
+            let storageRef = storage.reference(forURL: profileImageUrlString)
+            
+            // Get the download URL
+            let downloadURL = try await storageRef.downloadURL()
+            
+            // Update the profile image URL on the main thread
+            await MainActor.run {
+                profileImageURL = downloadURL
+            }
+        } catch {
+            print("Error loading profile image: \(error)")
+        }
+    }
+    
+    // New computed property for fallback profile image
+    private var fallbackProfileImage: some View {
+        Circle()
+            .fill(Color.gray.opacity(0.3))
+            .frame(width: 96, height: 96)
+            .overlay(
+                Image(systemName: "person.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(.white)
+            )
     }
 }
 

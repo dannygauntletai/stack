@@ -4,6 +4,7 @@ import FirebaseAuth
 
 @MainActor
 class ProfileViewModel: ObservableObject {
+    @Published var user: User?
     @Published var userVideos: [Video] = []
     @Published var likedVideos: [Video] = []
     private let db = Firestore.firestore()
@@ -12,6 +13,54 @@ class ProfileViewModel: ObservableObject {
         guard let userId = Auth.auth().currentUser?.uid else { return }
         
         do {
+            // Fetch user data and stats
+            let userDoc = try await db.collection("users").document(userId).getDocument()
+            if let userData = userDoc.data() {
+                // Get followers count
+                let followersSnapshot = try await db.collection("users")
+                    .document(userId)
+                    .collection("followers")
+                    .getDocuments()
+                
+                // Get following count
+                let followingSnapshot = try await db.collection("users")
+                    .document(userId)
+                    .collection("following")
+                    .getDocuments()
+                
+                // Get restacks count
+                let restacksSnapshot = try await db.collection("users")
+                    .document(userId)
+                    .collection("restacks")
+                    .getDocuments()
+                
+                let followersCount = followersSnapshot.documents
+                    .filter { $0.documentID != "placeholder" }
+                    .count
+                
+                let followingCount = followingSnapshot.documents
+                    .filter { $0.documentID != "placeholder" }
+                    .count
+                
+                let restacksCount = restacksSnapshot.documents
+                    .filter { $0.documentID != "placeholder" }
+                    .count
+                
+                // Create user with complete data from Firestore
+                self.user = User(
+                    uid: userId,
+                    username: userData["username"] as? String ?? "",
+                    firstName: userData["firstName"] as? String ?? "",
+                    lastName: userData["lastName"] as? String ?? "",
+                    email: userData["email"] as? String ?? "",
+                    profileImageUrl: userData["profileImageUrl"] as? String,
+                    createdAt: (userData["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
+                    followersCount: followersCount,
+                    followingCount: followingCount,
+                    restacksCount: restacksCount
+                )
+            }
+            
             // Fetch user's videos
             let videosSnapshot = try await db.collection("videos")
                 .whereField("userId", isEqualTo: userId)
