@@ -19,6 +19,8 @@ final class VideoUploadViewModel: ObservableObject, @unchecked Sendable {
     private var currentUploadTask: StorageUploadTask?
     private let monitor = NWPathMonitor()
     private var isNetworkAvailable = true
+    private let maxVideoDuration: Double = 15.0
+    private let preferredBitRate: Float = 2_000_000 // 2Mbps
     
     init() {
         monitor.pathUpdateHandler = { [weak self] path in
@@ -46,8 +48,9 @@ final class VideoUploadViewModel: ObservableObject, @unchecked Sendable {
         
         Task {
             do {
-                // Generate thumbnail from original video
-                guard let thumbnail = await generateThumbnail(from: url) else {
+                let processedURL = try await processVideo(url: url)
+                // Generate thumbnail from processed video
+                guard let thumbnail = await generateThumbnail(from: processedURL) else {
                     let error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to generate thumbnail"])
                     handleError(error, completion: completion)
                     return
@@ -68,7 +71,7 @@ final class VideoUploadViewModel: ObservableObject, @unchecked Sendable {
                 ]
                 
                 // First check if video is in correct format
-                let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
+                let asset = AVURLAsset(url: processedURL, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
                 let duration = try await asset.load(.duration)
                 if duration.seconds == 0 {
                     throw NSError(domain: "", code: -1, 
@@ -76,7 +79,7 @@ final class VideoUploadViewModel: ObservableObject, @unchecked Sendable {
                 }
                 
                 // Upload the video with proper metadata
-                currentUploadTask = storageRef.putFile(from: url, metadata: metadata)
+                currentUploadTask = storageRef.putFile(from: processedURL, metadata: metadata)
                 
                 let taskReference = currentUploadTask
                 taskReference?.observe(.resume) { [weak self] _ in
@@ -218,5 +221,75 @@ final class VideoUploadViewModel: ObservableObject, @unchecked Sendable {
         isUploading = false
         uploadStatus = .ready
         uploadProgress = 0
+    }
+    
+    private func processVideo(url: URL) async throws -> URL {
+        let asset = AVAsset(url: url)
+        let duration = try await asset.load(.duration)
+        
+        // Create temp output URL
+        let processedURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("mp4")
+        
+        // Setup export session
+        let composition = AVMutableComposition()
+        guard let videoTrack = try await composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw VideoError.processingFailed
+        }
+        
+        // Get source video track
+        guard let sourceVideoTrack = try await asset.loadTracks(withMediaType: .video).first else {
+            throw VideoError.invalidSource
+        }
+        
+        // Calculate time range
+        let timeRange = CMTimeRange(
+            start: .zero,
+            duration: duration.seconds > maxVideoDuration 
+                ? CMTime(seconds: maxVideoDuration, preferredTimescale: 600)
+                : duration
+        )
+        
+        // Add video track
+        try videoTrack.insertTimeRange(timeRange, of: sourceVideoTrack, at: .zero)
+        
+        // Configure export session
+        let exportSession = AVAssetExportSession(
+            asset: composition,
+            presetName: AVAssetExportPresetHighestQuality
+        )
+        
+        guard let exportSession = exportSession else {
+            throw VideoError.exportFailed
+        }
+        
+        exportSession.outputURL = processedURL
+        exportSession.outputFileType = .mp4
+        exportSession.videoComposition = nil
+        exportSession.shouldOptimizeForNetworkUse = true
+        
+        if let videoComposition = exportSession.videoComposition {
+            let settings = videoComposition.renderSize
+            exportSession.fileLengthLimit = 10_000_000 // 10MB limit
+        }
+        
+        // Export the video
+        await exportSession.export()
+        
+        guard exportSession.status == .completed else {
+            throw VideoError.exportFailed
+        }
+        
+        return processedURL
+    }
+    
+    enum VideoError: Error {
+        case processingFailed
+        case invalidSource
+        case exportFailed
     }
 } 
