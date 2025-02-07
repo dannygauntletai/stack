@@ -84,7 +84,7 @@ struct HomeVideoOverlay: View {
                         Image(systemName: "message")
                             .font(.system(size: 30))
                             .foregroundStyle(.white)
-                        Text(formatCount(interaction.comments))
+                        Text(formatCount(video.comments))
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.white)
                     }
@@ -125,7 +125,7 @@ struct HomeVideoOverlay: View {
         }
         .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 4)
         .sheet(isPresented: $showComments) {
-            CommentSheet(videoId: video.videoUrl)
+            CommentSheet(videoId: video.id)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }

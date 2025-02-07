@@ -172,13 +172,17 @@ class ShortFormFeedViewModel: ObservableObject {
                 guard let self = self,
                       let snapshot = snapshot,
                       let data = snapshot.data(),
-                      let likes = data["likes"] as? Int else { return }
+                      let likes = data["likes"] as? Int,
+                      let comments = data["comments"] as? Int else { return }
                 
                 DispatchQueue.main.async {
                     if let index = self.videos.firstIndex(where: { $0.id == video.id }) {
-                        // Only update if the count has changed
+                        // Update both likes and comments count
                         if self.videos[index].likes != likes {
                             self.videos[index].likes = likes
+                        }
+                        if self.videos[index].comments != comments {
+                            self.videos[index].comments = comments
                         }
                     }
                 }
@@ -344,13 +348,29 @@ class ShortFormFeedViewModel: ObservableObject {
                         profileImageUrl: userData?["profileImageUrl"] as? String
                     )
                     
-                    // Convert gs:// URL to downloadable URL
-                    let storageRef = self.storage.reference(forURL: gsUrl)
-                    let videoUrl = try await storageRef.downloadURL().absoluteString
+                    // Safely handle the gsUrl
+                    let videoUrl: String
+                    if gsUrl.hasPrefix("gs://") {
+                        // Handle gs:// URL
+                        let storageRef = self.storage.reference(forURL: gsUrl)
+                        videoUrl = try await storageRef.downloadURL().absoluteString
+                    } else if gsUrl.hasPrefix("http") {
+                        // Already a download URL
+                        videoUrl = gsUrl
+                    } else {
+                        throw VideoError.invalidVideoUrl
+                    }
+                    
+                    // Clean the URL by removing any double slashes (except for https://)
+                    let cleanedUrl = videoUrl.replacingOccurrences(
+                        of: "([^:])//",
+                        with: "$1/",
+                        options: .regularExpression
+                    )
                     
                     return Video(
                         id: id,
-                        videoUrl: videoUrl,
+                        videoUrl: cleanedUrl,
                         caption: caption,
                         createdAt: createdAt,
                         userId: userId,
@@ -422,5 +442,6 @@ class ShortFormFeedViewModel: ObservableObject {
 
 enum VideoError: Error {
     case invalidData
+    case invalidVideoUrl
     case userNotAuthenticated
 }

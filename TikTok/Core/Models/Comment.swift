@@ -7,7 +7,6 @@ struct Comment: Identifiable {
     let text: String
     let createdAt: Date
     var likes: Int
-    // Placeholder fields
     let username: String
     let profileImageUrl: String?
     
