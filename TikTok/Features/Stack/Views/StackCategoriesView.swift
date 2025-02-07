@@ -16,64 +16,61 @@ struct StackCategoriesView: View {
     ]
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .padding()
-                    } else if let error = viewModel.errorMessage {
-                        Text(error)
-                            .foregroundStyle(.red)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                    }
-                    
-                    LazyVGrid(columns: columns, spacing: gridSpacing) {
-                    ForEach(viewModel.categories) { category in
-                        NavigationLink {
-                            StackedComponentsView(category: category)
-                        } label: {
-                            CategoryCard(
-                                category: category,
-                                count: viewModel.stackCounts[category.id] ?? 0,
-                                cardWidth: cardWidth,
-                                cardPadding: cardPadding
-                            )
-                        }
-                        .buttonStyle(CategoryButtonStyle(color: category.color))
-                    }
-                }
-                .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, 8)
+        ScrollView {
+            if viewModel.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding()
+            } else if let error = viewModel.errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity)
+                    .padding()
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Stacks")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, horizontalPadding)
+            
+            LazyVGrid(columns: columns, spacing: gridSpacing) {
+                // Existing Categories First
+                ForEach(viewModel.categories) { category in
+                    NavigationLink {
+                        StackedComponentsView(category: category)
+                    } label: {
+                        CategoryCard(
+                            category: category,
+                            count: viewModel.stackCounts[category.id] ?? 0,
+                            cardWidth: cardWidth,
+                            cardPadding: cardPadding
+                        )
+                    }
+                    .buttonStyle(CategoryButtonStyle(color: category.color))
                 }
                 
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingCreateCategory = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                    }
-                    .padding(.trailing, horizontalPadding - 8)
+                // Create button will always be last due to being after ForEach
+                Button {
+                    showingCreateCategory = true
+                } label: {
+                    CategoryCard(
+                        category: .init(
+                            id: "add",
+                            name: "Create",
+                            icon: "plus.circle.fill",
+                            color: .gray
+                        ),
+                        count: 0,
+                        cardWidth: cardWidth,
+                        cardPadding: cardPadding
+                    )
                 }
+                .buttonStyle(CategoryButtonStyle(color: .gray))
             }
-            .task {
-                await viewModel.fetchCategories()
-                await viewModel.fetchStackCounts()
-            }
-            .sheet(isPresented: $showingCreateCategory) {
-                CreateCategoryView(viewModel: viewModel)
-            }
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, 8)
+        }
+        .task {
+            await viewModel.fetchCategories()
+            await viewModel.fetchStackCounts()
+        }
+        .sheet(isPresented: $showingCreateCategory) {
+            CreateCategoryView(viewModel: viewModel)
         }
     }
 }
@@ -93,9 +90,12 @@ private struct CategoryCard: View {
             Text(category.name)
                 .font(.system(size: 16, weight: .semibold))
             
-            Text("\(count) videos")
-                .font(.system(size: 14))
-                .foregroundStyle(.gray)
+            // Only show video count if it's not the "Create Stack" button
+            if category.id != "add" {
+                Text("\(count) videos")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.gray)
+            }
         }
         .frame(width: cardWidth - (cardPadding * 2))
         .frame(height: 140) // Fixed height for consistency

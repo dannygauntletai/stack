@@ -5,11 +5,9 @@ struct NavigationTitleView: View {
     
     var body: some View {
         Text(title)
-            .font(.largeTitle)
-            .fontWeight(.bold)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .font(.title3)
+            .fontWeight(.semibold)
             .foregroundColor(.white)
-            .padding(.horizontal)
-            .padding(.top)
+            .frame(maxWidth: .infinity)
     }
 } 

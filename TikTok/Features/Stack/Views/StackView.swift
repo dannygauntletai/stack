@@ -2,15 +2,21 @@ import SwiftUI
 
 struct StackView: View {
     var body: some View {
-        NavigationStack {
+        NavigationView {
             StackCategoriesView()
                 .background(Color(.systemBackground))
-                .navigationTitle("Stacks")
-                .navigationBarTitleDisplayMode(.large)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        NavigationTitleView(title: "Stacks")
+                    }
+                }
         }
+        .navigationViewStyle(.stack)
     }
 }
 
 #Preview {
     StackView()
+        .preferredColorScheme(.dark)
 } 

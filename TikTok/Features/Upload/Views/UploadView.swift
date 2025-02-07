@@ -14,8 +14,6 @@ struct UploadView: View {
                 Color.black.ignoresSafeArea()
                 
                 VStack(spacing: 24) {
-                    NavigationTitleView(title: "Upload")
-                    
                     // Upload options
                     VStack(spacing: 16) {
                         UploadButton(
@@ -48,6 +46,11 @@ struct UploadView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    NavigationTitleView(title: "Upload")
+                }
+            }
             .preferredColorScheme(.dark)
             .sheet(isPresented: $showCamera) {
                 CameraView()

@@ -12,9 +12,7 @@ struct MainTabView: View {
                     Text("Home")
                 }
                 .tag(0)
-            
-            // Moved Stacks to second position
-            StackCategoriesView()
+            StackView()
                 .tabItem {
                     Image(systemName: selectedTab == 1 ? "square.stack.3d.up.fill" : "square.stack.3d.up")
                     Text("Stacks")

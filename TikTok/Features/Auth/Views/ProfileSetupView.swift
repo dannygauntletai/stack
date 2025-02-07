@@ -12,7 +12,7 @@ struct ProfileSetupView: View {
                 Color.black.ignoresSafeArea()
                 
                 VStack(spacing: 32) {
-                    NavigationTitleView(title: "Profile Setup")
+                    NavigationTitleView(title: "Create Profile")
                     
                     // Header
                     VStack(spacing: 12) {
@@ -138,6 +138,11 @@ struct ProfileSetupView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    NavigationTitleView(title: "Create Profile")
+                }
+            }
             .onChange(of: viewModel.isComplete) { isComplete in
                 if isComplete {
                     authViewModel.isAuthenticated = true
