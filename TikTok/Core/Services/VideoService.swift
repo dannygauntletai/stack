@@ -6,7 +6,7 @@ import FirebaseFunctions
 
 class VideoService {
     static let shared = VideoService()
-    private let functions = Functions.functions()
+    private let functions = Functions.functions(region: "us-central1")
     
     func analyzeVideoHealth(videoUrl: String) async throws {
         let data: [String: Any] = [

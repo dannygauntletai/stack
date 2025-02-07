@@ -1,0 +1,19 @@
+# Environment variables
+.env
+.env.yaml
+.env.local
+
+# Service account
+service-account.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+
+# IDE
+.vscode/
+.idea/ 
