@@ -13,6 +13,12 @@ struct VideoMetadataOverlay: View {
     private let tiktokBlue = Color(red: 76/255, green: 176/255, blue: 249/255)
     private let db = Firestore.firestore()
     
+    // Add UserDefaults cache for following status
+    private let followCache = UserDefaults.standard
+    private var followCacheKey: String {
+        "following_\(author.id)"
+    }
+    
     private func checkFollowStatus() {
         guard let currentUserId = Auth.auth().currentUser?.uid else { 
             isOwnVideo = false
@@ -23,21 +29,30 @@ struct VideoMetadataOverlay: View {
         // Check if it's the user's own video
         isOwnVideo = currentUserId == author.id
         
-        // Reset following state
-        isFollowing = false
+        if isOwnVideo {
+            isFollowing = false
+            return
+        }
         
-        // If not own video, check follow status
-        if !isOwnVideo {
-            db.collection("users")
-                .document(currentUserId)
-                .collection("following")
-                .document(author.id)
-                .getDocument { document, error in
-                    DispatchQueue.main.async {
-                        isFollowing = document?.exists ?? false
+        // First check cache for immediate UI update
+        isFollowing = followCache.bool(forKey: followCacheKey)
+        
+        // Then verify with server
+        db.collection("users")
+            .document(currentUserId)
+            .collection("following")
+            .document(author.id)
+            .getDocument { document, error in
+                DispatchQueue.main.async {
+                    let serverStatus = document?.exists ?? false
+                    // Only update UI if different from cache
+                    if serverStatus != isFollowing {
+                        isFollowing = serverStatus
+                        // Update cache with server value
+                        self.followCache.set(serverStatus, forKey: self.followCacheKey)
                     }
                 }
-        }
+            }
     }
     
     private func handleFollowAction() {
@@ -47,9 +62,13 @@ struct VideoMetadataOverlay: View {
         
         isLoading = true
         
+        // Optimistically update UI and cache
+        let newFollowStatus = !isFollowing
+        isFollowing = newFollowStatus
+        followCache.set(newFollowStatus, forKey: followCacheKey)
+        
         let batch = db.batch()
         
-        // References for both collections - need to update these paths
         let followerRef = db.collection("users")
             .document(author.id)
             .collection("followers")
@@ -60,25 +79,27 @@ struct VideoMetadataOverlay: View {
             .collection("following")
             .document(author.id)
         
-        if isFollowing {
-            // Unfollow: Delete from both collections
-            batch.deleteDocument(followerRef)
-            batch.deleteDocument(followingRef)
-        } else {
-            // Follow: Add to both collections with timestamps
+        if newFollowStatus {
+            // Follow
             let timestamp = Timestamp()
             let followData: [String: Any] = ["timestamp": timestamp]
-            
             batch.setData(followData, forDocument: followerRef)
             batch.setData(followData, forDocument: followingRef)
+        } else {
+            // Unfollow
+            batch.deleteDocument(followerRef)
+            batch.deleteDocument(followingRef)
         }
         
         // Commit the batch
         batch.commit { error in
             DispatchQueue.main.async {
                 isLoading = false
-                if error == nil {
-                    isFollowing.toggle()
+                if let error = error {
+                    // Revert on error
+                    print("Error updating follow status: \(error)")
+                    isFollowing = !newFollowStatus
+                    self.followCache.set(!newFollowStatus, forKey: self.followCacheKey)
                 }
             }
         }
