@@ -2,6 +2,8 @@ import SwiftUI
 
 struct HomeView: View {
     @State private var selectedTab = 0
+    @StateObject private var forYouViewModel = ShortFormFeedViewModel(isFollowingFeed: false)
+    @StateObject private var followingViewModel = ShortFormFeedViewModel(isFollowingFeed: true)
     
     private var topInset: CGFloat {
         // Get the window scene's safe area insets
@@ -19,12 +21,24 @@ struct HomeView: View {
             // Content
             TabView(selection: $selectedTab) {
                 ShortFormFeed(initialVideo: nil)
+                    .environmentObject(forYouViewModel)
                     .tag(0)
                     .ignoresSafeArea()
+                    .onChange(of: selectedTab) { newValue in
+                        if newValue == 0 {
+                            forYouViewModel.reset()
+                        }
+                    }
                 
-                Text("Following Feed")
-                    .foregroundColor(.white)
+                ShortFormFeed(initialVideo: nil)
+                    .environmentObject(followingViewModel)
                     .tag(1)
+                    .ignoresSafeArea()
+                    .onChange(of: selectedTab) { newValue in
+                        if newValue == 1 {
+                            followingViewModel.reset()
+                        }
+                    }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea()
@@ -63,10 +77,24 @@ struct HomeView: View {
             .padding(.top, topInset)
         }
         .ignoresSafeArea()
+        .onAppear {
+            // Load initial feed
+            forYouViewModel.loadVideos()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .followStatusChanged)) { _ in
+            if selectedTab == 1 {  // If on Following tab
+                followingViewModel.refreshFeed()
+            }
+        }
     }
 }
 
 #Preview {
     HomeView()
         .preferredColorScheme(.dark)
+}
+
+// Add notification name
+extension Notification.Name {
+    static let followStatusChanged = Notification.Name("followStatusChanged")
 } 

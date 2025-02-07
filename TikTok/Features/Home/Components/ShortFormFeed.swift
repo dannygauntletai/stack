@@ -2,7 +2,7 @@ import SwiftUI
 import Combine
 
 struct ShortFormFeed: View {
-    @StateObject private var viewModel = ShortFormFeedViewModel()
+    @EnvironmentObject var viewModel: ShortFormFeedViewModel
     @State private var currentIndex = 0
     @State private var viewableRange: Range<Int> = 0..<1
     
@@ -68,12 +68,15 @@ struct ShortFormFeed: View {
                                         )
                                         .onChange(of: visibility) { oldValue, newValue in
                                             if newValue.isFullyVisible {
-                                                currentIndex = index
-                                                viewableRange = max(0, index - 1)..<min(videos.count, index + 2)
-                                                
-                                                // Load more videos when near the end
-                                                if index >= videos.count - 2 {
-                                                    viewModel.loadMoreVideos()
+                                                // Safely update current index
+                                                if index < videos.count {
+                                                    currentIndex = index
+                                                    viewableRange = max(0, index - 1)..<min(videos.count, index + 2)
+                                                    
+                                                    // Load more videos when near the end
+                                                    if index >= videos.count - 2 {
+                                                        viewModel.loadMoreVideos()
+                                                    }
                                                 }
                                             }
                                         }
@@ -87,7 +90,7 @@ struct ShortFormFeed: View {
                     .ignoresSafeArea()
                     
                     // Fixed overlay that stays on top
-                    if !videos.isEmpty {
+                    if !videos.isEmpty && currentIndex < videos.count {
                         HomeVideoOverlay(video: videos[currentIndex])
                             .allowsHitTesting(true)
                     }

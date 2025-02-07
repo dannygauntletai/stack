@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import FirebaseFirestore
 import FirebaseStorage
+import FirebaseAuth
 
 class ShortFormFeedViewModel: ObservableObject {
     @Published private(set) var videos: [Video] = []
@@ -12,6 +13,11 @@ class ShortFormFeedViewModel: ObservableObject {
     private var hasMoreVideos = true
     private let pageSize = 5
     private var lastDocument: DocumentSnapshot?
+    private let isFollowingFeed: Bool
+    
+    init(isFollowingFeed: Bool = false) {
+        self.isFollowingFeed = isFollowingFeed
+    }
     
     enum LoadingState {
         case idle
@@ -76,25 +82,76 @@ class ShortFormFeedViewModel: ObservableObject {
     }
     
     private func fetchVideos() async throws -> [Video] {
-        var query = db.collection("videos")
-            .order(by: "createdAt", descending: true)
-            .limit(to: pageSize)
-        
-        // If we have a last document, start after it for pagination
-        if let lastDocument = lastDocument {
-            query = query.start(afterDocument: lastDocument)
+        if isFollowingFeed {
+            guard let userId = Auth.auth().currentUser?.uid else {
+                return [] // Return empty if not logged in
+            }
+            
+            print("Fetching following feed for user: \(userId)")
+            
+            // Get following list
+            let followingDocs = try await db.collection("users")
+                .document(userId)
+                .collection("following")
+                .getDocuments()
+            
+            let followingIds = followingDocs.documents.map { $0.documentID }
+            
+            print("Following IDs found: \(followingIds)")
+            
+            if followingIds.isEmpty {
+                print("No following found")
+                return [] // Return empty if not following anyone
+            }
+            
+            // First get all videos from followed users without ordering
+            let allFollowedVideos = try await db.collection("videos")
+                .whereField("userId", in: followingIds)
+                .getDocuments()
+            
+            // Then sort them in memory
+            let sortedVideos = allFollowedVideos.documents
+                .sorted { doc1, doc2 in
+                    let date1 = (doc1.data()["createdAt"] as? Timestamp)?.dateValue() ?? Date.distantPast
+                    let date2 = (doc2.data()["createdAt"] as? Timestamp)?.dateValue() ?? Date.distantPast
+                    return date1 > date2
+                }
+            
+            // Apply pagination in memory
+            let startIndex = currentPage * pageSize
+            let endIndex = min(startIndex + pageSize, sortedVideos.count)
+            
+            // Check if we have more pages
+            hasMoreVideos = endIndex < sortedVideos.count
+            
+            // Get the paginated subset
+            guard startIndex < sortedVideos.count else { return [] }
+            let paginatedDocs = Array(sortedVideos[startIndex..<endIndex])
+            
+            return try await processVideoDocuments(paginatedDocs)
+            
+        } else {
+            // For You feed - fetch all videos without filtering by userId
+            var query = db.collection("videos")
+                .order(by: "createdAt", descending: true)
+                .limit(to: pageSize)
+            
+            if let lastDocument = lastDocument {
+                query = query.start(afterDocument: lastDocument)
+            }
+            
+            let snapshot = try await query.getDocuments()
+            self.lastDocument = snapshot.documents.last
+            return try await processVideoDocuments(snapshot.documents)
         }
-        
-        let snapshot = try await query.getDocuments()
-        
-        // Store the last document for next pagination
-        self.lastDocument = snapshot.documents.last
-        
-        // Use async/await with Task.group to fetch all video URLs concurrently
-        return try await withThrowingTaskGroup(of: Video?.self) { group in
+    }
+    
+    // Helper method to process video documents
+    private func processVideoDocuments(_ documents: [QueryDocumentSnapshot]) async throws -> [Video] {
+        try await withThrowingTaskGroup(of: Video?.self) { group in
             var videos: [Video] = []
             
-            for document in snapshot.documents {
+            for document in documents {
                 group.addTask {
                     let data = document.data()
                     
@@ -148,6 +205,44 @@ class ShortFormFeedViewModel: ObservableObject {
             }
             
             return videos
+        }
+    }
+    
+    func reset() {
+        videos = []
+        currentPage = 0
+        lastDocument = nil
+        hasMoreVideos = true
+        loadingState = .idle
+        loadVideos()
+    }
+    
+    // Public method to force refresh the feed
+    func refreshFeed() {
+        videos = []
+        currentPage = 0
+        lastDocument = nil
+        hasMoreVideos = true
+        isLoading = false
+        loadingState = .idle
+        
+        Task {
+            do {
+                let newVideos = try await fetchVideos()
+                await MainActor.run {
+                    self.videos = newVideos
+                    self.currentPage += 1
+                    self.isLoading = false
+                    self.hasMoreVideos = newVideos.count == self.pageSize
+                    self.loadingState = newVideos.isEmpty ? .empty : .loaded
+                }
+            } catch {
+                print("Error refreshing videos: \(error)")
+                await MainActor.run {
+                    self.isLoading = false
+                    self.loadingState = .error(error)
+                }
+            }
         }
     }
 }

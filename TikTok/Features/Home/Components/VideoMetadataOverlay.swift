@@ -100,6 +100,9 @@ struct VideoMetadataOverlay: View {
                     print("Error updating follow status: \(error)")
                     isFollowing = !newFollowStatus
                     self.followCache.set(!newFollowStatus, forKey: self.followCacheKey)
+                } else {
+                    // Success - notify any following feed to refresh
+                    NotificationCenter.default.post(name: .followStatusChanged, object: nil)
                 }
             }
         }
