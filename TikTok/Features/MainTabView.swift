@@ -26,8 +26,8 @@ struct MainTabView: View {
                 }
                 .tag(2)
             
-            // Added Leaderboard tab
-            Text("Leaderboard View")
+            // Replace the Text view with LeaderboardView
+            LeaderboardView()
                 .tabItem {
                     Image(systemName: selectedTab == 3 ? "trophy.fill" : "trophy")
                     Text("Leaderboard")

@@ -127,17 +127,26 @@ class StackViewModel: ObservableObject {
         await fetchCategories()
     }
     
-    func addVideoToStack(video: Video, categoryId: String) async {  // Changed from UUID to String
+    func addVideoToStack(video: Video, categoryId: String) async {  
         guard let userId = Auth.auth().currentUser?.uid else { return }
         
         do {
+            // First get the video document to get its healthImpactScore
+            let videoDoc = try await db.collection("videos")
+                .document(video.id)
+                .getDocument()
+            
+            let healthImpactScore = videoDoc.data()?["healthImpactScore"] as? Double ?? 0
+            
+            // Now add to user's stack with the healthImpactScore
             try await db.collection("users")
                 .document(userId)
                 .collection("stacks")
                 .document(video.id)
                 .setData([
                     "videoId": video.id,
-                    "categoryId": categoryId,  // Use string ID directly
+                    "categoryId": categoryId,
+                    "healthImpactScore": healthImpactScore,  // Include the score
                     "addedAt": Timestamp(date: Date())
                 ])
             
