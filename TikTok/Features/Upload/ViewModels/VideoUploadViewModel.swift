@@ -230,11 +230,14 @@ final class VideoUploadViewModel: ObservableObject, @unchecked Sendable {
                             return
                         }
                         
-                        guard let exists = snapshot?.exists, exists else {
-                            self.handleError(NSError(domain: "", code: -1, 
-                                userInfo: [NSLocalizedDescriptionKey: "Write verification failed"]), 
-                                completion: completion)
-                            return
+                        // After successful upload, trigger health analysis
+                        Task {
+                            do {
+                                try await VideoService.shared.analyzeVideoHealth(videoUrl: videoURL)
+                            } catch {
+                                print("Health analysis error: \(error)")
+                                // Don't fail the upload if health analysis fails
+                            }
                         }
                         
                         self.isUploading = false
