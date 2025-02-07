@@ -26,7 +26,7 @@ struct ShortFormFeed: View {
             
             case .empty:
                 VStack(spacing: 12) {
-                    Text("No Videos Available")
+                    Text("No videos available")
                         .font(.system(size: 17))
                         .foregroundColor(.white)
                     Text("Tap to refresh")
