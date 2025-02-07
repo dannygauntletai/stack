@@ -8,35 +8,36 @@ struct VideoMetadataOverlay: View {
     let tags: [String]
     @State private var isFollowing = false
     @State private var isLoading = false
-    
-    // Add current user state
     @State private var isOwnVideo = false
     
     private let tiktokBlue = Color(red: 76/255, green: 176/255, blue: 249/255)
     private let db = Firestore.firestore()
     
-    // Initialize follow state
     private func checkFollowStatus() {
-        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
-        
-        // Don't check if it's the user's own video
-        if currentUserId == author.id {
-            isOwnVideo = true
-            return
+        guard let currentUserId = Auth.auth().currentUser?.uid else { 
+            isOwnVideo = false
+            isFollowing = false
+            return 
         }
         
-        // Check if current user is following the author
-        db.collection("followers")
-            .document(author.id)
-            .collection("userFollowers")
-            .document(currentUserId)
-            .getDocument { document, error in
-                if let document = document, document.exists {
+        // Check if it's the user's own video
+        isOwnVideo = currentUserId == author.id
+        
+        // Reset following state
+        isFollowing = false
+        
+        // If not own video, check follow status
+        if !isOwnVideo {
+            db.collection("followers")
+                .document(author.id)
+                .collection("userFollowers")
+                .document(currentUserId)
+                .getDocument { document, error in
                     DispatchQueue.main.async {
-                        isFollowing = true
+                        isFollowing = document?.exists ?? false
                     }
                 }
-            }
+        }
     }
     
     private func handleFollowAction() {
@@ -123,7 +124,7 @@ struct VideoMetadataOverlay: View {
                             .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
                             .padding(.top, 2)
                         
-                        // Only show follow button if not own video
+                        // Follow button - show only if not own video
                         if !isOwnVideo {
                             Button {
                                 handleFollowAction()
@@ -190,6 +191,9 @@ struct VideoMetadataOverlay: View {
                     .frame(height: 120)
             }
             .padding(.horizontal, 16)
+            .onChange(of: author.id) { _, _ in
+                checkFollowStatus()
+            }
             .onAppear {
                 checkFollowStatus()
             }
