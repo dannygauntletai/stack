@@ -6,6 +6,7 @@ struct Video: Identifiable {
     let caption: String
     let createdAt: Date
     let userId: String
+    let author: VideoAuthor  // Add author
     var likes: Int
     var comments: Int
     var shares: Int
@@ -20,7 +21,9 @@ struct Video: Identifiable {
             "userId": userId,
             "likes": likes,
             "comments": comments,
-            "shares": shares
+            "shares": shares,
+            "username": author.username,
+            "profileImageUrl": author.profileImageUrl as Any
         ]
         
         // Make sure thumbnailUrl is included when present

@@ -33,6 +33,7 @@ struct HomeVideoOverlay: View {
             caption: video.caption,
             createdAt: video.createdAt,
             userId: video.userId,
+            author: video.author,
             likes: interaction.likes,
             comments: interaction.comments,
             shares: video.shares,
@@ -44,12 +45,11 @@ struct HomeVideoOverlay: View {
         ZStack(alignment: .trailing) {
             // Left side metadata
             VideoMetadataOverlay(
-                username: metadata.username,
-                caption: metadata.caption,
-                profileImageUrl: metadata.profileImage,
-                tags: metadata.tags
+                author: video.author,
+                caption: video.caption,
+                tags: []  // Parse tags from caption if needed
             )
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: CGFloat.infinity, alignment: Alignment.leading)
             
             // Right side interaction buttons
             VStack(spacing: 20) {

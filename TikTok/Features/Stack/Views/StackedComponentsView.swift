@@ -229,17 +229,23 @@ class StackedComponentsViewModel: ObservableObject {
             
             self.videos = videosSnapshot.documents.compactMap { document in
                 let data = document.data()
-                return Video(
+                let video = Video(
                     id: document.documentID,
                     videoUrl: data["videoUrl"] as? String ?? "",
                     caption: data["caption"] as? String ?? "",
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                     userId: data["userId"] as? String ?? "",
+                    author: VideoAuthor(
+                        id: data["userId"] as? String ?? "",
+                        username: data["username"] as? String ?? "Unknown User",
+                        profileImageUrl: data["profileImageUrl"] as? String
+                    ),
                     likes: data["likes"] as? Int ?? 0,
                     comments: data["comments"] as? Int ?? 0,
                     shares: data["shares"] as? Int ?? 0,
                     thumbnailUrl: data["thumbnailUrl"] as? String
                 )
+                return video
             }
         } catch {
             print("Error fetching stacked videos: \(error)")

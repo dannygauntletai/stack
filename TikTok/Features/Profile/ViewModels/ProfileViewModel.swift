@@ -1,6 +1,7 @@
 import Foundation
 import FirebaseFirestore
 import FirebaseAuth
+import FirebaseStorage
 
 @MainActor
 class ProfileViewModel: ObservableObject {
@@ -8,6 +9,7 @@ class ProfileViewModel: ObservableObject {
     @Published var userVideos: [Video] = []
     @Published var likedVideos: [Video] = []
     private let db = Firestore.firestore()
+    private let storage = Storage.storage()
     
     func setCachedUsername(_ username: String) {
         // Only set cached username if we don't have a user yet
@@ -80,34 +82,7 @@ class ProfileViewModel: ObservableObject {
             }
             
             // Fetch user's videos
-            let videosSnapshot = try await db.collection("videos")
-                .whereField("userId", isEqualTo: userId)
-                .getDocuments()
-            
-            userVideos = videosSnapshot.documents.compactMap { document in
-                guard let videoUrl = document.get("videoUrl") as? String,
-                      let caption = document.get("caption") as? String,
-                      let userId = document.get("userId") as? String,
-                      let createdAt = document.get("createdAt") as? Timestamp,
-                      let likes = document.get("likes") as? Int,
-                      let comments = document.get("comments") as? Int,
-                      let shares = document.get("shares") as? Int
-                else { return nil }
-                
-                let thumbnailUrl = document.get("thumbnailUrl") as? String
-                
-                return Video(
-                    id: document.documentID,
-                    videoUrl: videoUrl,
-                    caption: caption,
-                    createdAt: createdAt.dateValue(),
-                    userId: userId,
-                    likes: likes,
-                    comments: comments,
-                    shares: shares,
-                    thumbnailUrl: thumbnailUrl
-                )
-            }
+            userVideos = try await fetchUserVideos()
             
             // Fetch liked videos
             let likedSnapshot = try await db.collection("users")
@@ -131,12 +106,23 @@ class ProfileViewModel: ObservableObject {
                     
                     let thumbnailUrl = doc.get("thumbnailUrl") as? String
                     
+                    // Get user data for author
+                    let userDoc = try await self.db.collection("users").document(userId).getDocument()
+                    let userData = userDoc.data()
+                    
+                    let author = VideoAuthor(
+                        id: userId,
+                        username: userData?["username"] as? String ?? "Unknown User",
+                        profileImageUrl: userData?["profileImageUrl"] as? String
+                    )
+                    
                     let video = Video(
                         id: doc.documentID,
                         videoUrl: videoUrl,
                         caption: caption,
                         createdAt: createdAt.dateValue(),
                         userId: userId,
+                        author: author,
                         likes: likes,
                         comments: comments,
                         shares: shares,
@@ -149,4 +135,79 @@ class ProfileViewModel: ObservableObject {
             print("Error fetching user content: \(error)")
         }
     }
+    
+    private func fetchUserVideos() async throws -> [Video] {
+        guard let userId = Auth.auth().currentUser?.uid else { 
+            throw ProfileError.userNotFound 
+        }
+        
+        let snapshot = try await db.collection("videos")
+            .whereField("userId", isEqualTo: userId)
+            .getDocuments()
+        
+        return try await withThrowingTaskGroup(of: Video?.self) { group in
+            var videos: [Video] = []
+            
+            for document in snapshot.documents {
+                group.addTask {
+                    let data = document.data()
+                    
+                    guard let id = document.documentID as String?,
+                          let gsUrl = data["videoUrl"] as? String,
+                          let caption = data["caption"] as? String,
+                          let createdAt = (data["createdAt"] as? Timestamp)?.dateValue(),
+                          let userId = data["userId"] as? String,
+                          let likes = data["likes"] as? Int,
+                          let comments = data["comments"] as? Int,
+                          let shares = data["shares"] as? Int
+                    else { 
+                        throw ProfileError.invalidData 
+                    }
+                    
+                    let thumbnailUrl = data["thumbnailUrl"] as? String
+                    
+                    // Get user data for author
+                    let userDoc = try await self.db.collection("users").document(userId).getDocument()
+                    let userData = userDoc.data()
+                    
+                    let author = VideoAuthor(
+                        id: userId,
+                        username: userData?["username"] as? String ?? "Unknown User",
+                        profileImageUrl: userData?["profileImageUrl"] as? String
+                    )
+                    
+                    // Convert gs:// URL to downloadable URL
+                    let storageRef = self.storage.reference(forURL: gsUrl)
+                    let videoUrl = try await storageRef.downloadURL().absoluteString
+                    
+                    return Video(
+                        id: id,
+                        videoUrl: videoUrl,
+                        caption: caption,
+                        createdAt: createdAt,
+                        userId: userId,
+                        author: author,
+                        likes: likes,
+                        comments: comments,
+                        shares: shares,
+                        thumbnailUrl: thumbnailUrl
+                    )
+                }
+            }
+            
+            // Collect all non-nil videos
+            for try await video in group {
+                if let video = video {
+                    videos.append(video)
+                }
+            }
+            
+            return videos
+        }
+    }
+}
+
+enum ProfileError: Error {
+    case userNotFound
+    case invalidData
 } 

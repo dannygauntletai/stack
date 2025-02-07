@@ -180,6 +180,11 @@ final class VideoUploadViewModel: ObservableObject, @unchecked Sendable {
             caption: caption,
             createdAt: Date(),
             userId: userId,
+            author: VideoAuthor(
+                id: userId,
+                username: Auth.auth().currentUser?.displayName ?? "Unknown User",
+                profileImageUrl: Auth.auth().currentUser?.photoURL?.absoluteString
+            ),
             likes: 0,
             comments: 0,
             shares: 0,

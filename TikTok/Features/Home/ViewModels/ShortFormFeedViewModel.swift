@@ -106,10 +106,20 @@ class ShortFormFeedViewModel: ObservableObject {
                           let likes = data["likes"] as? Int,
                           let comments = data["comments"] as? Int,
                           let shares = data["shares"] as? Int else {
-                        return nil
+                        throw VideoError.invalidData
                     }
                     
                     let thumbnailUrl = data["thumbnailUrl"] as? String
+                    
+                    // Fetch user data
+                    let userDoc = try await self.db.collection("users").document(userId).getDocument()
+                    let userData = userDoc.data()
+                    
+                    let author = VideoAuthor(
+                        id: userId,
+                        username: userData?["username"] as? String ?? "Unknown User",
+                        profileImageUrl: userData?["profileImageUrl"] as? String
+                    )
                     
                     // Convert gs:// URL to downloadable URL
                     let storageRef = self.storage.reference(forURL: gsUrl)
@@ -121,6 +131,7 @@ class ShortFormFeedViewModel: ObservableObject {
                         caption: caption,
                         createdAt: createdAt,
                         userId: userId,
+                        author: author,
                         likes: likes,
                         comments: comments,
                         shares: shares,
@@ -139,4 +150,8 @@ class ShortFormFeedViewModel: ObservableObject {
             return videos
         }
     }
+}
+
+enum VideoError: Error {
+    case invalidData
 }
