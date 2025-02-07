@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseStorage
+import Foundation
 
 struct ProfileView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
@@ -8,6 +9,10 @@ struct ProfileView: View {
     @State private var showingMenu = false
     @State private var profileImageURL: URL?
     @State private var isLoadingProfileImage = false
+    
+    // Add these new properties
+    private let imageCache = ImageCache.shared
+    private let userDefaults = UserDefaults.standard
     
     var body: some View {
         NavigationView {
@@ -139,17 +144,44 @@ struct ProfileView: View {
             }
         }
         .task {
+            // Load cached data first
+            loadCachedData()
+            // Then fetch fresh data
             await viewModel.fetchUserContent()
             await loadProfileImage()
+        }
+    }
+    
+    private func loadCachedData() {
+        // Load cached username
+        if let cachedUsername = userDefaults.string(forKey: "cached_username") {
+            viewModel.setCachedUsername(cachedUsername)
+        }
+        
+        // Load cached profile image
+        if let cachedImageUrl = userDefaults.string(forKey: "cached_profile_image_url"),
+           let url = URL(string: cachedImageUrl) {
+            profileImageURL = url
+            
+            // Load cached image from disk if available
+            if let cachedImage = imageCache.getImage(forKey: cachedImageUrl) {
+                profileImageURL = URL(string: cachedImageUrl)
+            }
         }
     }
     
     private func loadProfileImage() async {
         guard let profileImageUrlString = viewModel.user?.profileImageUrl else { return }
         
+        // Cache the username if available
+        if let username = viewModel.user?.username {
+            userDefaults.set(username, forKey: "cached_username")
+        }
+        
         // If it's already a regular URL, use it directly
         if profileImageUrlString.hasPrefix("http") {
             profileImageURL = URL(string: profileImageUrlString)
+            userDefaults.set(profileImageUrlString, forKey: "cached_profile_image_url")
             return
         }
         
@@ -165,6 +197,15 @@ struct ProfileView: View {
             
             // Get the download URL
             let downloadURL = try await storageRef.downloadURL()
+            
+            // Cache the download URL
+            userDefaults.set(downloadURL.absoluteString, forKey: "cached_profile_image_url")
+            
+            // Download and cache the image
+            let (data, _) = try await URLSession.shared.data(from: downloadURL)
+            if let image = UIImage(data: data) {
+                imageCache.setImage(image, forKey: downloadURL.absoluteString)
+            }
             
             // Update the profile image URL on the main thread
             await MainActor.run {
@@ -341,6 +382,54 @@ struct VideoThumbnail: View {
                     .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 0)
                 }
             )
+    }
+}
+
+// Add this class at the bottom of the file
+final class ImageCache {
+    static let shared = ImageCache()
+    private let cache = NSCache<NSString, UIImage>()
+    private let fileManager = FileManager.default
+    
+    private init() {}
+    
+    func setImage(_ image: UIImage, forKey key: String) {
+        cache.setObject(image, forKey: key as NSString)
+        
+        // Also save to disk
+        if let data = image.jpegData(compressionQuality: 0.8) {
+            let filename = getFilename(from: key)
+            let fileURL = getDocumentsDirectory().appendingPathComponent(filename)
+            try? data.write(to: fileURL)
+        }
+    }
+    
+    func getImage(forKey key: String) -> UIImage? {
+        // First check memory cache
+        if let image = cache.object(forKey: key as NSString) {
+            return image
+        }
+        
+        // Then check disk cache
+        let filename = getFilename(from: key)
+        let fileURL = getDocumentsDirectory().appendingPathComponent(filename)
+        if let data = try? Data(contentsOf: fileURL),
+           let image = UIImage(data: data) {
+            // Store in memory cache for next time
+            cache.setObject(image, forKey: key as NSString)
+            return image
+        }
+        
+        return nil
+    }
+    
+    private func getDocumentsDirectory() -> URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+    
+    private func getFilename(from urlString: String) -> String {
+        let hash = urlString.hash
+        return "profile_image_\(abs(hash)).jpg"
     }
 }
 

@@ -9,6 +9,24 @@ class ProfileViewModel: ObservableObject {
     @Published var likedVideos: [Video] = []
     private let db = Firestore.firestore()
     
+    func setCachedUsername(_ username: String) {
+        // Only set cached username if we don't have a user yet
+        if user == nil {
+            user = User(
+                uid: "",  // Empty string as temporary ID
+                username: username,
+                firstName: "",
+                lastName: "",
+                email: "",
+                profileImageUrl: nil,
+                createdAt: Date(),
+                followersCount: 0,
+                followingCount: 0,
+                restacksCount: 0
+            )
+        }
+    }
+    
     func fetchUserContent() async {
         guard let userId = Auth.auth().currentUser?.uid else { return }
         
