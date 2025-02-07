@@ -174,48 +174,74 @@ final class VideoUploadViewModel: ObservableObject, @unchecked Sendable {
         userId: String,
         completion: @escaping (Result<Video, Error>) -> Void
     ) {
-        let video = Video(
-            id: videoId,
-            videoUrl: videoURL,
-            caption: caption,
-            createdAt: Date(),
-            userId: userId,
-            author: VideoAuthor(
-                id: userId,
-                username: Auth.auth().currentUser?.displayName ?? "Unknown User",
-                profileImageUrl: Auth.auth().currentUser?.photoURL?.absoluteString
-            ),
-            likes: 0,
-            comments: 0,
-            shares: 0,
-            thumbnailUrl: thumbnailURL
-        )
-        
-        let docRef = db.collection("videos").document(video.id)
-        
-        docRef.setData(video.dictionary) { [weak self] (error: Error?) in
+        // First fetch the user data
+        db.collection("users").document(userId).getDocument { [weak self] snapshot, error in
             guard let self = self else { return }
             
-            docRef.getDocument { [weak self] (snapshot: DocumentSnapshot?, verifyError: Error?) in
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.handleError(error, completion: completion)
+                }
+                return
+            }
+            
+            guard let snapshot = snapshot, snapshot.exists, let userData = snapshot.data() else {
+                DispatchQueue.main.async {
+                    self.handleError(
+                        NSError(domain: "", code: -1, 
+                            userInfo: [NSLocalizedDescriptionKey: "User profile not found"]),
+                        completion: completion
+                    )
+                }
+                return
+            }
+            
+            let username = userData["username"] as? String ?? "Unknown User"
+            let profileImageUrl = userData["profileImageUrl"] as? String
+            
+            let video = Video(
+                id: videoId,
+                videoUrl: videoURL,
+                caption: caption,
+                createdAt: Date(),
+                userId: userId,
+                author: VideoAuthor(
+                    id: userId,
+                    username: username,
+                    profileImageUrl: profileImageUrl
+                ),
+                likes: 0,
+                comments: 0,
+                shares: 0,
+                thumbnailUrl: thumbnailURL
+            )
+            
+            let docRef = db.collection("videos").document(video.id)
+            
+            docRef.setData(video.dictionary) { [weak self] error in
                 guard let self = self else { return }
                 
-                DispatchQueue.main.async {
-                    if let error = error ?? verifyError {
-                        self.handleError(error, completion: completion)
-                        return
-                    }
+                docRef.getDocument { [weak self] (snapshot, verifyError) in
+                    guard let self = self else { return }
                     
-                    guard let exists = snapshot?.exists, exists else {
-                        self.handleError(NSError(domain: "", code: -1, 
-                            userInfo: [NSLocalizedDescriptionKey: "Write verification failed"]), 
-                            completion: completion)
-                        return
+                    DispatchQueue.main.async {
+                        if let error = error ?? verifyError {
+                            self.handleError(error, completion: completion)
+                            return
+                        }
+                        
+                        guard let exists = snapshot?.exists, exists else {
+                            self.handleError(NSError(domain: "", code: -1, 
+                                userInfo: [NSLocalizedDescriptionKey: "Write verification failed"]), 
+                                completion: completion)
+                            return
+                        }
+                        
+                        self.isUploading = false
+                        self.uploadStatus = .completed
+                        completion(.success(video))
+                        self.uploadComplete = true
                     }
-                    
-                    self.isUploading = false
-                    self.uploadStatus = .completed
-                    completion(.success(video))
-                    self.uploadComplete = true
                 }
             }
         }
