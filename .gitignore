@@ -47,5 +47,10 @@ wheels/
 Thumbs.db 
 
 
-./functions/service-account.json
+functions/service-account.json
 service-account.json
+old_functions/service-account.json
+
+node_modules/
+.env
+*.log

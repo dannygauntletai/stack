@@ -1,0 +1,9 @@
+mkdir cloud-functions
+cd cloud-functions
+npm init -y
+npm install @google-cloud/functions-framework 
+gcloud auth activate-service-account --key-file=service-account.json 
+gcloud functions deploy helloWorld \
+  --runtime nodejs18 \
+  --trigger-http \
+  --allow-unauthenticated 
