@@ -2,9 +2,11 @@ import SwiftUI
 
 struct HomeVideoOverlay: View {
     let video: Video
+    @EnvironmentObject var viewModel: ShortFormFeedViewModel
     @State private var interaction: VideoInteraction
     @State private var showStackSelection = false
     @State private var showComments = false
+    @State private var isPerformingAction = false
     
     init(video: Video) {
         self.video = video
@@ -41,6 +43,10 @@ struct HomeVideoOverlay: View {
         )
     }
     
+    private var isLiked: Bool {
+        viewModel.isVideoLiked(video.id)
+    }
+    
     var body: some View {
         ZStack(alignment: .trailing) {
             // Left side metadata
@@ -57,18 +63,18 @@ struct HomeVideoOverlay: View {
                 
                 // Like Button
                 Button {
-                    interaction.isLiked.toggle()
-                    interaction.likes += interaction.isLiked ? 1 : -1
+                    handleLike()
                 } label: {
                     VStack(spacing: 3) {
-                        Image(systemName: interaction.isLiked ? "heart.fill" : "heart")
+                        Image(systemName: isLiked ? "heart.fill" : "heart")
                             .font(.system(size: 32))
-                            .foregroundStyle(interaction.isLiked ? .red : .white)
-                        Text(formatCount(interaction.likes))
+                            .foregroundStyle(isLiked ? .red : .white)
+                        Text(formatCount(video.likes))
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.white)
                     }
                 }
+                .disabled(isPerformingAction)
                 
                 // Comments Button
                 Button {
@@ -125,6 +131,20 @@ struct HomeVideoOverlay: View {
         }
         .sheet(isPresented: $showStackSelection) {
             StackSelectionModal(video: stackVideo)
+        }
+    }
+    
+    private func handleLike() {
+        guard !isPerformingAction else { return }
+        isPerformingAction = true
+        
+        Task {
+            do {
+                try await viewModel.toggleLike(for: video)
+            } catch {
+                print("Error toggling like: \(error)")
+            }
+            isPerformingAction = false
         }
     }
     

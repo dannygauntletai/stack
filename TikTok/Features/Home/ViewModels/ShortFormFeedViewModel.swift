@@ -7,6 +7,7 @@ import FirebaseAuth
 class ShortFormFeedViewModel: ObservableObject {
     @Published private(set) var videos: [Video] = []
     @Published private(set) var loadingState: LoadingState = .idle
+    @Published private(set) var likedVideoIds: Set<String> = []
     
     private var currentPage = 0
     private var isLoading = false
@@ -15,8 +16,19 @@ class ShortFormFeedViewModel: ObservableObject {
     private var lastDocument: DocumentSnapshot?
     private let isFollowingFeed: Bool
     
+    private var likesListener: ListenerRegistration?
+    private var likeStatusCache = NSCache<NSString, NSNumber>()
+    
+    private var videoListeners: [String: ListenerRegistration] = [:]
+    
+    deinit {
+        likesListener?.remove()
+        removeAllVideoListeners()
+    }
+    
     init(isFollowingFeed: Bool = false) {
         self.isFollowingFeed = isFollowingFeed
+        setupLikesListener()
     }
     
     enum LoadingState {
@@ -30,10 +42,158 @@ class ShortFormFeedViewModel: ObservableObject {
     private let db = Firestore.firestore()
     private let storage = Storage.storage()
     
+    // Helper method to check like status with caching
+    func isVideoLiked(_ videoId: String) -> Bool {
+        // Check cache first for faster response
+        if let cached = likeStatusCache.object(forKey: videoId as NSString) {
+            return cached.boolValue
+        }
+        
+        // Fall back to set and update cache
+        let isLiked = likedVideoIds.contains(videoId)
+        likeStatusCache.setObject(NSNumber(value: isLiked), forKey: videoId as NSString)
+        return isLiked
+    }
+    
+    private func setupLikesListener() {
+        // Remove any existing listener
+        likesListener?.remove()
+        
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        // Setup real-time listener for likes collection
+        likesListener = db.collection("users")
+            .document(userId)
+            .collection("likes")
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self,
+                      let snapshot = snapshot else {
+                    print("Error listening for like updates: \(error?.localizedDescription ?? "Unknown error")")
+                    return
+                }
+                
+                // Update liked video IDs
+                let newLikedIds = Set(snapshot.documents.map { $0.documentID })
+                
+                // Clear cache and update with new values
+                self.likeStatusCache.removeAllObjects()
+                
+                // Update local state on main thread
+                DispatchQueue.main.async {
+                    // Update liked video IDs set
+                    self.likedVideoIds = newLikedIds
+                    
+                    // Update cache with new values - include both true and false states
+                    for video in self.videos {
+                        let isLiked = newLikedIds.contains(video.id)
+                        self.likeStatusCache.setObject(NSNumber(value: isLiked), 
+                                                     forKey: video.id as NSString)
+                    }
+                    
+                    // Update video like counts if needed
+                    self.updateVideoLikeCounts(oldLikes: self.likedVideoIds, newLikes: newLikedIds)
+                }
+            }
+    }
+    
+    private func updateVideoLikeCounts(oldLikes: Set<String>, newLikes: Set<String>) {
+        let added = newLikes.subtracting(oldLikes)
+        let removed = oldLikes.subtracting(newLikes)
+        
+        for videoId in added {
+            if let index = videos.firstIndex(where: { $0.id == videoId }) {
+                videos[index].likes += 1
+            }
+        }
+        
+        for videoId in removed {
+            if let index = videos.firstIndex(where: { $0.id == videoId }) {
+                videos[index].likes -= 1
+            }
+        }
+    }
+    
+    func toggleLike(for video: Video) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw VideoError.userNotAuthenticated
+        }
+        
+        let videoRef = db.collection("videos").document(video.id)
+        let userLikesRef = db.collection("users")
+            .document(userId)
+            .collection("likes")
+            .document(video.id)
+        
+        let batch = db.batch()
+        let isLiked = isVideoLiked(video.id)
+        
+        if isLiked {
+            // Unlike
+            batch.deleteDocument(userLikesRef)
+            batch.updateData([
+                "likes": FieldValue.increment(Int64(-1))
+            ], forDocument: videoRef)
+            
+            // Update cache immediately for better UX
+            likeStatusCache.setObject(NSNumber(value: false), forKey: video.id as NSString)
+        } else {
+            // Like
+            batch.setData([
+                "timestamp": FieldValue.serverTimestamp(),
+                "videoId": video.id,
+                "userId": userId
+            ], forDocument: userLikesRef)
+            
+            batch.updateData([
+                "likes": FieldValue.increment(Int64(1))
+            ], forDocument: videoRef)
+            
+            // Update cache immediately for better UX
+            likeStatusCache.setObject(NSNumber(value: true), forKey: video.id as NSString)
+        }
+        
+        // Let the snapshot listener handle the state updates
+        try await batch.commit()
+    }
+    
+    private func removeAllVideoListeners() {
+        videoListeners.values.forEach { $0.remove() }
+        videoListeners.removeAll()
+    }
+    
+    private func setupVideoListener(for video: Video) {
+        // Remove existing listener if any
+        videoListeners[video.id]?.remove()
+        
+        // Setup new listener
+        let listener = db.collection("videos")
+            .document(video.id)
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self,
+                      let snapshot = snapshot,
+                      let data = snapshot.data(),
+                      let likes = data["likes"] as? Int else { return }
+                
+                DispatchQueue.main.async {
+                    if let index = self.videos.firstIndex(where: { $0.id == video.id }) {
+                        // Only update if the count has changed
+                        if self.videos[index].likes != likes {
+                            self.videos[index].likes = likes
+                        }
+                    }
+                }
+            }
+        
+        videoListeners[video.id] = listener
+    }
+    
     func loadVideos() {
         guard !isLoading else { return }
         isLoading = true
         loadingState = .loading
+        
+        // Remove existing video listeners when loading new videos
+        removeAllVideoListeners()
         
         // Reset pagination when loading fresh
         lastDocument = nil
@@ -48,6 +208,9 @@ class ShortFormFeedViewModel: ObservableObject {
                     self.isLoading = false
                     self.hasMoreVideos = newVideos.count == self.pageSize
                     self.loadingState = newVideos.isEmpty ? .empty : .loaded
+                    
+                    // Setup listeners for new videos
+                    newVideos.forEach { self.setupVideoListener(for: $0) }
                 }
             } catch {
                 print("Error loading videos: \(error)")
@@ -71,6 +234,9 @@ class ShortFormFeedViewModel: ObservableObject {
                     self.currentPage += 1
                     self.isLoading = false
                     self.hasMoreVideos = newVideos.count == self.pageSize
+                    
+                    // Setup listeners for new videos
+                    newVideos.forEach { self.setupVideoListener(for: $0) }
                 }
             } catch {
                 print("Error loading more videos: \(error)")
@@ -214,6 +380,9 @@ class ShortFormFeedViewModel: ObservableObject {
         lastDocument = nil
         hasMoreVideos = true
         loadingState = .idle
+        likeStatusCache.removeAllObjects()
+        removeAllVideoListeners() // Remove video listeners
+        setupLikesListener()
         loadVideos()
     }
     
@@ -225,6 +394,7 @@ class ShortFormFeedViewModel: ObservableObject {
         hasMoreVideos = true
         isLoading = false
         loadingState = .idle
+        removeAllVideoListeners() // Remove video listeners
         
         Task {
             do {
@@ -235,6 +405,9 @@ class ShortFormFeedViewModel: ObservableObject {
                     self.isLoading = false
                     self.hasMoreVideos = newVideos.count == self.pageSize
                     self.loadingState = newVideos.isEmpty ? .empty : .loaded
+                    
+                    // Setup listeners for new videos
+                    newVideos.forEach { self.setupVideoListener(for: $0) }
                 }
             } catch {
                 print("Error refreshing videos: \(error)")
@@ -249,4 +422,5 @@ class ShortFormFeedViewModel: ObservableObject {
 
 enum VideoError: Error {
     case invalidData
+    case userNotAuthenticated
 }
