@@ -1,61 +1,103 @@
 import SwiftUI
+import Combine
 
 struct ShortFormFeed: View {
+    @StateObject private var viewModel = ShortFormFeedViewModel()
     @State private var currentIndex = 0
     @State private var viewableRange: Range<Int> = 0..<1
     
-    // Add initialVideo parameter
+    // Keep existing initialVideo parameter
     let initialVideo: Video?
     
-    // Initialize videos array based on whether we have an initial video
-    var videos: [String] {
+    var videos: [Video] {
         if let initialVideo = initialVideo {
-            return [initialVideo.videoUrl]
+            return [initialVideo]
         }
-        return Array(repeating: 
-            "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_30MB.mp4", 
-            count: 5)
-    }
-    
-    // Add initializer with default value
-    init(initialVideo: Video? = nil) {
-        self.initialVideo = initialVideo
+        return viewModel.videos
     }
     
     var body: some View {
         ZStack(alignment: .trailing) {
-            // Video feed
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(spacing: 0) {
-                    ForEach(videos.indices, id: \.self) { index in
-                        if let url = URL(string: videos[index]) {
-                            GeometryReader { geometry in
-                                let minY = geometry.frame(in: .global).minY
-                                let height = UIScreen.main.bounds.height
-                                let visibility = calculateVisibility(minY: minY, height: height)
-                                
-                                ShortFormVideoPlayer(
-                                    videoURL: url,
-                                    visibility: visibility
-                                )
-                                .onChange(of: visibility) { newVisibility in
-                                    if newVisibility.isFullyVisible {
-                                        currentIndex = index
-                                        viewableRange = max(0, index - 1)..<min(videos.count, index + 2)
+            switch viewModel.loadingState {
+            case .loading:
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .tint(.white)
+            
+            case .empty:
+                VStack(spacing: 12) {
+                    Text("No Videos Available")
+                        .font(.system(size: 17))
+                        .foregroundColor(.white)
+                    Text("Tap to refresh")
+                        .font(.system(size: 15))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                .onTapGesture {
+                    viewModel.loadVideos()
+                }
+                
+            case .error(let error):
+                VStack(spacing: 12) {
+                    Text("Failed to Load Videos")
+                        .font(.system(size: 17))
+                        .foregroundColor(.white)
+                    Text("Tap to retry")
+                        .font(.system(size: 15))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                .onTapGesture {
+                    viewModel.loadVideos()
+                }
+                
+            case .idle, .loaded:
+                if !videos.isEmpty {
+                    // Video feed
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVStack(spacing: 0) {
+                            ForEach(videos.indices, id: \.self) { index in
+                                if let url = URL(string: videos[index].videoUrl) {
+                                    GeometryReader { geometry in
+                                        let minY = geometry.frame(in: .global).minY
+                                        let height = UIScreen.main.bounds.height
+                                        let visibility = calculateVisibility(minY: minY, height: height)
+                                        
+                                        ShortFormVideoPlayer(
+                                            videoURL: url,
+                                            visibility: visibility
+                                        )
+                                        .onChange(of: visibility) { oldValue, newValue in
+                                            if newValue.isFullyVisible {
+                                                currentIndex = index
+                                                viewableRange = max(0, index - 1)..<min(videos.count, index + 2)
+                                                
+                                                // Load more videos when near the end
+                                                if index >= videos.count - 2 {
+                                                    viewModel.loadMoreVideos()
+                                                }
+                                            }
+                                        }
                                     }
+                                    .frame(height: UIScreen.main.bounds.height)
                                 }
                             }
-                            .frame(height: UIScreen.main.bounds.height)
                         }
+                    }
+                    .scrollTargetBehavior(.paging)
+                    .ignoresSafeArea()
+                    
+                    // Fixed overlay that stays on top
+                    if !videos.isEmpty {
+                        HomeVideoOverlay(video: videos[currentIndex])
+                            .allowsHitTesting(true)
                     }
                 }
             }
-            .scrollTargetBehavior(.paging)
-            .ignoresSafeArea()
-            
-            // Fixed overlay that stays on top
-            HomeVideoOverlay(videoUrl: videos[currentIndex])
-                .allowsHitTesting(true)
+        }
+        .onAppear {
+            if initialVideo == nil {
+                viewModel.loadVideos()
+            }
         }
     }
     
@@ -80,6 +122,6 @@ struct VideoVisibility: Equatable {
 }
 
 #Preview {
-    ShortFormFeed()
+    ShortFormFeed(initialVideo: nil)
         .preferredColorScheme(.dark)
 } 

@@ -1,10 +1,19 @@
 import SwiftUI
 
 struct HomeVideoOverlay: View {
-    let videoUrl: String
-    @State private var interaction = VideoInteraction(likes: 0, comments: 0, isLiked: false)
+    let video: Video
+    @State private var interaction: VideoInteraction
     @State private var showStackSelection = false
     @State private var showComments = false
+    
+    init(video: Video) {
+        self.video = video
+        self._interaction = State(initialValue: VideoInteraction(
+            likes: video.likes,
+            comments: video.comments,
+            isLiked: false
+        ))
+    }
     
     // Sample metadata for test videos
     private var metadata: (username: String, caption: String, profileImage: String?, tags: [String]) {
@@ -16,18 +25,18 @@ struct HomeVideoOverlay: View {
         )
     }
     
-    // Add this property to create a Video object for the stack
-    private var video: Video {
+    // Create a stack video object with updated interaction counts
+    private var stackVideo: Video {
         Video(
-            id: videoUrl, // Using videoUrl as id since that's what we have
-            videoUrl: videoUrl,
-            caption: "", // We don't have this info in the overlay currently
-            createdAt: Date(),
-            userId: "",
+            id: video.id,
+            videoUrl: video.videoUrl,
+            caption: video.caption,
+            createdAt: video.createdAt,
+            userId: video.userId,
             likes: interaction.likes,
             comments: interaction.comments,
-            shares: 0,
-            thumbnailUrl: nil
+            shares: video.shares,
+            thumbnailUrl: video.thumbnailUrl
         )
     }
     
@@ -110,12 +119,12 @@ struct HomeVideoOverlay: View {
         }
         .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 4)
         .sheet(isPresented: $showComments) {
-            CommentSheet(videoId: videoUrl)
+            CommentSheet(videoId: video.videoUrl)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showStackSelection) {
-            StackSelectionModal(video: video)
+            StackSelectionModal(video: stackVideo)
         }
     }
     

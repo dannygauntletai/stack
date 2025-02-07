@@ -18,7 +18,7 @@ struct HomeView: View {
             
             // Content
             TabView(selection: $selectedTab) {
-                ShortFormFeed()
+                ShortFormFeed(initialVideo: nil)
                     .tag(0)
                     .ignoresSafeArea()
                 
