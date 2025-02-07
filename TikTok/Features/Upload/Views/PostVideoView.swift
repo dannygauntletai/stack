@@ -160,11 +160,13 @@ struct PostVideoView: View {
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                             
-                            Text(caption)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            TextField("Add a caption...", text: $caption)
+                                .textFieldStyle(PlainTextFieldStyle())
                                 .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(Color(.systemGray6))
                                 .cornerRadius(12)
+                                .foregroundColor(.white)
                         }
                         .padding(.horizontal)
                         

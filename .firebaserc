@@ -1,5 +1,11 @@
 {
   "projects": {
     "default": "tiktok-18d7a"
+  },
+  "functions": {
+    "analyze_health": {
+      "memory": "3GB",
+      "timeoutSeconds": 540
+    }
   }
 } 

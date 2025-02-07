@@ -59,10 +59,6 @@ struct ProfileView: View {
                             count: "\(viewModel.user?.followersCount ?? 0)", 
                             title: "Followers"
                         )
-                        StatColumn(
-                            count: "\(viewModel.user?.restacksCount ?? 0)", 
-                            title: "Restacks"
-                        )
                     }
                     
                     // Edit Profile Button
