@@ -1,12 +1,87 @@
 import SwiftUI
+import FirebaseFirestore
+import FirebaseAuth
 
 struct VideoMetadataOverlay: View {
     let author: VideoAuthor
     let caption: String?
     let tags: [String]
     @State private var isFollowing = false
+    @State private var isLoading = false
+    
+    // Add current user state
+    @State private var isOwnVideo = false
     
     private let tiktokBlue = Color(red: 76/255, green: 176/255, blue: 249/255)
+    private let db = Firestore.firestore()
+    
+    // Initialize follow state
+    private func checkFollowStatus() {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        
+        // Don't check if it's the user's own video
+        if currentUserId == author.id {
+            isOwnVideo = true
+            return
+        }
+        
+        // Check if current user is following the author
+        db.collection("followers")
+            .document(author.id)
+            .collection("userFollowers")
+            .document(currentUserId)
+            .getDocument { document, error in
+                if let document = document, document.exists {
+                    DispatchQueue.main.async {
+                        isFollowing = true
+                    }
+                }
+            }
+    }
+    
+    private func handleFollowAction() {
+        guard !isLoading,
+              let currentUserId = Auth.auth().currentUser?.uid,
+              currentUserId != author.id else { return }
+        
+        isLoading = true
+        
+        let batch = db.batch()
+        
+        // References for both collections
+        let followerRef = db.collection("followers")
+            .document(author.id)
+            .collection("userFollowers")
+            .document(currentUserId)
+        
+        let followingRef = db.collection("following")
+            .document(currentUserId)
+            .collection("userFollowing")
+            .document(author.id)
+        
+        if isFollowing {
+            // Unfollow: Delete from both collections
+            batch.deleteDocument(followerRef)
+            batch.deleteDocument(followingRef)
+        } else {
+            // Follow: Add to both collections with timestamps
+            let timestamp = Timestamp()
+            let followData: [String: Any] = ["timestamp": timestamp]
+            
+            batch.setData(followData, forDocument: followerRef)
+            batch.setData(followData, forDocument: followingRef)
+        }
+        
+        // Commit the batch
+        batch.commit { error in
+            DispatchQueue.main.async {
+                isLoading = false
+                if error == nil {
+                    isFollowing.toggle()
+                }
+            }
+        }
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -48,18 +123,23 @@ struct VideoMetadataOverlay: View {
                             .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
                             .padding(.top, 2)
                         
-                        Button {
-                            isFollowing.toggle()
-                        } label: {
-                            Text(isFollowing ? "Following" : "Follow")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(isFollowing ? .gray : .white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 3)
-                                .background(
-                                    Capsule()
-                                        .fill(isFollowing ? Color.white : Color.black.opacity(0.75))
-                                )
+                        // Only show follow button if not own video
+                        if !isOwnVideo {
+                            Button {
+                                handleFollowAction()
+                            } label: {
+                                Text(isFollowing ? "Following" : "Follow")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(isFollowing ? .gray : .white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 3)
+                                    .background(
+                                        Capsule()
+                                            .fill(isFollowing ? Color.white : Color.black.opacity(0.75))
+                                    )
+                            }
+                            .disabled(isLoading)
+                            .opacity(isLoading ? 0.5 : 1)
                         }
                     }
                     .padding(.top, 24)
@@ -110,6 +190,9 @@ struct VideoMetadataOverlay: View {
                     .frame(height: 120)
             }
             .padding(.horizontal, 16)
+            .onAppear {
+                checkFollowStatus()
+            }
         }
     }
 } 
