@@ -8,8 +8,8 @@ struct StackedComponentsView: View {
     @State private var selectedVideo: Video? = nil
     @State private var showVideo = false
     
-    let columns = [
-        GridItem(.flexible()),
+    private let columns = [
+        GridItem(.flexible(), spacing: 8),
         GridItem(.flexible())
     ]
     
@@ -22,21 +22,18 @@ struct StackedComponentsView: View {
             } else if viewModel.videos.isEmpty {
                 EmptyStateView(category: category)
             } else {
-                LazyVGrid(columns: columns, spacing: 16) {
+                LazyVGrid(columns: columns, spacing: 8) {
                     ForEach(viewModel.videos) { video in
-                        Button {
+                        ThumbnailCard(video: video, category: category) {
                             selectedVideo = video
                             showVideo = true
-                        } label: {
-                            VideoCard(video: video, category: category)
                         }
-                        .buttonStyle(VideoButtonStyle(color: category.color))
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
             }
         }
+        .background(Color.black)
         .navigationTitle(category.name)
         .task {
             await viewModel.fetchVideos(for: category.id)
@@ -45,97 +42,56 @@ struct StackedComponentsView: View {
             await viewModel.fetchVideos(for: category.id)
         }
         .fullScreenCover(isPresented: $showVideo) {
-            ZStack(alignment: .topLeading) {
-                if let video = selectedVideo {
-                    ShortFormFeed(initialVideo: video)
-                        .ignoresSafeArea()
-                }
-                
-                // Back button
-                Button {
-                    showVideo = false
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(12)
-                        .background(.black.opacity(0.3))
-                        .clipShape(Circle())
-                }
-                .padding(.top, 60)
-                .padding(.leading, 16)
+            if let video = selectedVideo {
+                VideoPlayerView(video: video, isPresented: $showVideo)
             }
         }
     }
 }
 
-private struct VideoCard: View {
+private struct ThumbnailCard: View {
     let video: Video
     let category: StackCategory
+    let action: () -> Void
     
-    // Define fixed dimensions for consistent layout
-    private let cardWidth = (UIScreen.main.bounds.width - 48) / 2 // Account for padding and spacing
-    private let imageHeight: CGFloat = 180
-    private let cardPadding: CGFloat = 12
+    private let size = (UIScreen.main.bounds.width - 32) / 2
     
     var body: some View {
-        VStack(spacing: 8) {
-            // Thumbnail container with fixed dimensions
-            ZStack {
-                if let thumbnailUrl = video.thumbnailUrl {
-                    StorageImageView(gsURL: thumbnailUrl) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        placeholderView
-                            .overlay {
-                                ProgressView()
-                                    .tint(category.color)
-                            }
+        Button(action: action) {
+            ZStack(alignment: .topTrailing) {
+                // Thumbnail
+                Group {
+                    if let thumbnailUrl = video.thumbnailUrl {
+                        StorageImageView(gsURL: thumbnailUrl) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            thumbnailPlaceholder
+                        }
+                    } else {
+                        thumbnailPlaceholder
                     }
-                } else {
-                    placeholderView
                 }
-            }
-            .frame(width: cardWidth - (cardPadding * 2), height: imageHeight)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            
-            // Video Info with fixed width
-            VStack(alignment: .leading, spacing: 4) {
-                Text(video.caption)
-                    .font(.system(size: 14, weight: .semibold))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 40) // Fixed height for 2 lines
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
                 
-                HStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "heart.fill")
-                            .foregroundStyle(category.color)
-                        Text(formatCount(video.likes))
-                            .foregroundStyle(.gray)
-                    }
-                    
-                    HStack(spacing: 4) {
-                        Image(systemName: "message.fill")
-                            .foregroundStyle(category.color)
-                        Text(formatCount(video.comments))
-                            .foregroundStyle(.gray)
-                    }
+                // Score indicator
+                HStack(spacing: 4) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 12))
+                    Text("\(video.likes + video.comments)")
+                        .font(.system(size: 12, weight: .medium))
                 }
-                .font(.system(size: 12))
+                .foregroundColor(.white)
+                .padding(8)
+                .shadow(color: .black.opacity(0.3), radius: 3)
             }
-            .frame(width: cardWidth - (cardPadding * 2))
         }
-        .frame(width: cardWidth, height: imageHeight + 80) // Fixed total height
-        .padding(cardPadding)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .buttonStyle(ThumbnailButtonStyle())
     }
     
-    private var placeholderView: some View {
+    private var thumbnailPlaceholder: some View {
         Rectangle()
             .fill(category.color.opacity(0.1))
             .overlay {
@@ -144,30 +100,38 @@ private struct VideoCard: View {
                     .foregroundStyle(category.color)
             }
     }
-    
-    // Helper function to format counts (e.g., 1.2K, 4.5M)
-    private func formatCount(_ count: Int) -> String {
-        if count >= 1_000_000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000)
-        } else if count >= 1_000 {
-            return String(format: "%.1fK", Double(count) / 1_000)
-        }
-        return "\(count)"
+}
+
+private struct ThumbnailButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.spring(duration: 0.2), value: configuration.isPressed)
     }
 }
 
-private struct VideoButtonStyle: ButtonStyle {
-    let color: Color
+private struct VideoPlayerView: View {
+    let video: Video
+    @Binding var isPresented: Bool
     
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .animation(.spring(duration: 0.2), value: configuration.isPressed)
-            .shadow(
-                color: color.opacity(configuration.isPressed ? 0.2 : 0.1),
-                radius: configuration.isPressed ? 2 : 3,
-                y: configuration.isPressed ? 1 : 2
-            )
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ShortFormFeed(initialVideo: video)
+                .ignoresSafeArea()
+            
+            Button {
+                isPresented = false
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(12)
+                    .background(.black.opacity(0.3))
+                    .clipShape(Circle())
+            }
+            .padding(.top, 60)
+            .padding(.leading, 16)
+        }
     }
 }
 
@@ -194,9 +158,10 @@ private struct EmptyStateView: View {
 }
 
 @MainActor
-class StackedComponentsViewModel: ObservableObject {
+final class StackedComponentsViewModel: ObservableObject {
     @Published private(set) var videos: [Video] = []
     @Published private(set) var isLoading = false
+    
     private let db = Firestore.firestore()
     
     func fetchVideos(for categoryId: String) async {
@@ -206,31 +171,29 @@ class StackedComponentsViewModel: ObservableObject {
         defer { isLoading = false }
         
         do {
-            // First get the stacks for this category
-            let stacksSnapshot = try await db.collection("users")
+            // Get video IDs from user's stacks for this category
+            let stacksRef = db.collection("users")
                 .document(userId)
                 .collection("stacks")
                 .whereField("categoryId", isEqualTo: categoryId)
-                .getDocuments()
             
-            let videoIds = stacksSnapshot.documents.compactMap { doc -> String? in
-                doc.data()["videoId"] as? String
-            }
+            let stacksSnapshot = try await stacksRef.getDocuments()
+            let videoIds = stacksSnapshot.documents.compactMap { $0.data()["videoId"] as? String }
             
-            if videoIds.isEmpty {
+            guard !videoIds.isEmpty else {
                 self.videos = []
                 return
             }
             
-            // Then fetch the actual videos
-            let videosSnapshot = try await db.collection("videos")
+            // Fetch videos
+            let videosRef = db.collection("videos")
                 .whereField(FieldPath.documentID(), in: videoIds)
-                .getDocuments()
             
-            self.videos = videosSnapshot.documents.compactMap { document in
-                let data = document.data()
-                let video = Video(
-                    id: document.documentID,
+            let videosSnapshot = try await videosRef.getDocuments()
+            self.videos = videosSnapshot.documents.compactMap { doc in
+                let data = doc.data()
+                return Video(
+                    id: doc.documentID,
                     videoUrl: data["videoUrl"] as? String ?? "",
                     caption: data["caption"] as? String ?? "",
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
@@ -245,7 +208,6 @@ class StackedComponentsViewModel: ObservableObject {
                     shares: data["shares"] as? Int ?? 0,
                     thumbnailUrl: data["thumbnailUrl"] as? String
                 )
-                return video
             }
         } catch {
             print("Error fetching stacked videos: \(error)")
