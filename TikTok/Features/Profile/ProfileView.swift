@@ -5,6 +5,7 @@ import Foundation
 struct ProfileView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
     @StateObject private var viewModel = ProfileViewModel()
+    @StateObject private var feedViewModel = ShortFormFeedViewModel()
     @State private var selectedTab = 0
     @State private var showingMenu = false
     @State private var profileImageURL: URL?
@@ -139,6 +140,7 @@ struct ProfileView: View {
                 }
             }
         }
+        .environmentObject(feedViewModel)
         .task {
             // Load cached data first
             loadCachedData()
@@ -260,6 +262,7 @@ struct PostsGridView: View {
 
 struct VideoThumbnail: View {
     let video: Video
+    @EnvironmentObject private var feedViewModel: ShortFormFeedViewModel
     @State private var showVideo = false
     @State private var thumbnailURL: URL?
     @State private var isLoadingThumbnail = false
@@ -308,24 +311,10 @@ struct VideoThumbnail: View {
             await loadThumbnail()
         }
         .fullScreenCover(isPresented: $showVideo) {
-            ZStack(alignment: .topLeading) {
-                ShortFormFeed(initialVideo: video)
-                    .ignoresSafeArea()
-                
-                // Back button
-                Button {
-                    showVideo = false
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(12)
-                        .background(.black.opacity(0.3))
-                        .clipShape(Circle())
-                }
-                .padding(.top, 60)
-                .padding(.leading, 16)
-            }
+            VideoPlayerView(video: video)
+                .environmentObject(feedViewModel)
+                .background(.clear)
+                .presentationBackground(.clear)
         }
     }
     
@@ -378,6 +367,139 @@ struct VideoThumbnail: View {
                     .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 0)
                 }
             )
+    }
+}
+
+// Add this new view for the full-screen video player
+struct VideoPlayerView: View {
+    let video: Video
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var feedViewModel: ShortFormFeedViewModel
+    @State private var offset: CGSize = .zero
+    @GestureState private var isDragging = false
+    
+    // Constants
+    private let tabBarHeight: CGFloat = 49
+    private let verticalDismissThreshold: CGFloat = 100
+    private let horizontalDismissThreshold: CGFloat = 150
+    
+    // Computed properties for smooth transitions
+    private var blurRadius: CGFloat {
+        let maxRadius: CGFloat = 20.0
+        let vertical = abs(offset.height) / CGFloat(300) * maxRadius
+        let horizontal = abs(offset.width) / CGFloat(300) * maxRadius
+        return min(max(vertical, horizontal), maxRadius)
+    }
+    
+    private var scale: CGFloat {
+        let minScale: CGFloat = 0.8
+        let vertical = 1.0 - abs(offset.height) / CGFloat(1000)
+        let horizontal = 1.0 - abs(offset.width) / CGFloat(1000)
+        return max(min(vertical, horizontal), minScale)
+    }
+    
+    private func dismissWithAnimation(in direction: DismissDirection) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+            switch direction {
+            case .right:
+                offset.width = UIScreen.main.bounds.width
+            case .left:
+                offset.width = -UIScreen.main.bounds.width
+            case .up:
+                offset.height = -UIScreen.main.bounds.height
+            case .down:
+                offset.height = UIScreen.main.bounds.height
+            }
+        }
+        dismiss()
+    }
+    
+    private enum DismissDirection {
+        case up, down, left, right
+    }
+    
+    var body: some View {
+        ZStack {
+            // Main content
+            ZStack(alignment: .top) {
+                ShortFormVideoPlayer(
+                    videoURL: URL(string: video.videoUrl)!,
+                    visibility: VideoVisibility(
+                        isFullyVisible: true,
+                        isPartiallyVisible: true,
+                        visibilityPercentage: 1.0
+                    )
+                )
+                .ignoresSafeArea()
+                
+                GeometryReader { geometry in
+                    ZStack(alignment: .top) {
+                        // Close button
+                        HStack {
+                            Button {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    dismiss()
+                                }
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(12)
+                                    .background(.black.opacity(0.3))
+                                    .clipShape(Circle())
+                            }
+                            Spacer()
+                        }
+                        .padding(.top, 60)
+                        .padding(.horizontal, 16)
+                        
+                        HomeVideoOverlay(video: video)
+                            .frame(height: geometry.size.height - tabBarHeight)
+                            .offset(y: geometry.safeAreaInsets.top)
+                    }
+                }
+            }
+            .scaleEffect(scale)
+            .blur(radius: blurRadius)
+        }
+        .background(.clear)
+        .offset(x: offset.width, y: offset.height)
+        .gesture(
+            DragGesture()
+                .updating($isDragging) { value, state, _ in
+                    state = true
+                }
+                .onChanged { value in
+                    let translation = value.translation
+                    offset = CGSize(
+                        width: translation.width * 0.8,
+                        height: translation.height * 0.8
+                    )
+                }
+                .onEnded { value in
+                    let translation = value.translation
+                    let velocity = CGSize(
+                        width: value.predictedEndLocation.x - value.location.x,
+                        height: value.predictedEndLocation.y - value.location.y
+                    )
+                    
+                    if abs(translation.height) > verticalDismissThreshold || abs(velocity.height) > 500 ||
+                       abs(translation.width) > horizontalDismissThreshold || abs(velocity.width) > 500 {
+                        
+                        // Determine dismiss direction based on dominant axis and direction
+                        if abs(translation.width) > abs(translation.height) {
+                            dismissWithAnimation(in: translation.width > 0 ? .right : .left)
+                        } else {
+                            dismissWithAnimation(in: translation.height > 0 ? .down : .up)
+                        }
+                    } else {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            offset = .zero
+                        }
+                    }
+                }
+        )
+        .preferredColorScheme(.dark)
     }
 }
 
