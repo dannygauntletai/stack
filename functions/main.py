@@ -188,8 +188,6 @@ def _get_health_impact_analysis(video_analysis: Dict) -> Tuple[float, Dict]:
             "tags": ["<tag1>", "<tag2>", "<tag3>"]
         }
     }
-
-    For tags: Generate EXACTLY 3 single-word hashtags (no compounds like 'MentalHealth'). Examples: #Fitness, #Health, #Diet
     """
     
     try:
