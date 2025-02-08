@@ -106,27 +106,22 @@ struct ShortFormVideoPlayer: View {
             if showPlayPauseIndicator {
                 Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 70))
-                    .foregroundColor(.white.opacity(0.95))  // More opaque
-                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 0)  // Added shadow for better visibility
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.5).combined(with: .opacity)
-                            .animation(.spring(response: 0.35, dampingFraction: 0.7)),
-                        removal: .scale(scale: 1.1).combined(with: .opacity)
-                            .animation(.easeOut(duration: 0.25))
-                    ))
+                    .foregroundColor(.white.opacity(0.95))
+                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 0)
+                    .transition(.opacity)
             }
         }
         .onTapGesture {
             isPlaying.toggle()
             
-            // Show indicator with smoother animation
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+            // Show indicator
+            withAnimation(.easeOut(duration: 0.2)) {
                 showPlayPauseIndicator = true
             }
             
-            // Hide indicator with longer fade
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-                withAnimation(.easeOut(duration: 0.25)) {
+            // Hide indicator after delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                withAnimation(.easeOut(duration: 0.2)) {
                     showPlayPauseIndicator = false
                 }
             }
