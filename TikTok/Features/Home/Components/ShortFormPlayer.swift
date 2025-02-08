@@ -95,21 +95,51 @@ struct ShortFormVideoPlayer: View {
     let videoURL: URL
     let visibility: VideoVisibility
     @State private var isPlaying: Bool = false
+    @State private var showPlayPauseIndicator: Bool = false
     
     var body: some View {
-        ShortFormPlayer(url: videoURL, isPlaying: $isPlaying)
-            .ignoresSafeArea()
-            .onChange(of: visibility) { newVisibility in
-                // More immediate playback
-                isPlaying = newVisibility.visibilityPercentage > 0.5
+        ZStack {
+            ShortFormPlayer(url: videoURL, isPlaying: $isPlaying)
+                .ignoresSafeArea()
+            
+            // Play/Pause indicator overlay
+            if showPlayPauseIndicator {
+                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 70))
+                    .foregroundColor(.white.opacity(0.95))  // More opaque
+                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 0)  // Added shadow for better visibility
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.5).combined(with: .opacity)
+                            .animation(.spring(response: 0.35, dampingFraction: 0.7)),
+                        removal: .scale(scale: 1.1).combined(with: .opacity)
+                            .animation(.easeOut(duration: 0.25))
+                    ))
             }
-            .onAppear {
-                // Start playing immediately if mostly visible
-                isPlaying = visibility.visibilityPercentage > 0.5
+        }
+        .onTapGesture {
+            isPlaying.toggle()
+            
+            // Show indicator with smoother animation
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                showPlayPauseIndicator = true
             }
-            .onDisappear {
-                isPlaying = false
+            
+            // Hide indicator with longer fade
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    showPlayPauseIndicator = false
+                }
             }
+        }
+        .onChange(of: visibility) { newVisibility in
+            isPlaying = newVisibility.visibilityPercentage > 0.5
+        }
+        .onAppear {
+            isPlaying = visibility.visibilityPercentage > 0.5
+        }
+        .onDisappear {
+            isPlaying = false
+        }
     }
 }
 
