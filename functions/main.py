@@ -135,11 +135,28 @@ def _categorize_environment(labels) -> str:
             
     return 'unknown'
 
+def _clean_tags(tags: list, score: float = 0) -> list:
+    """Clean and format tags to be single words. Returns empty list if score is 0."""
+    # If no health impact, return empty list
+    if score == 0:
+        return []
+        
+    cleaned = []
+    for tag in tags:
+        # Remove hashtag symbol and any whitespace
+        tag = tag.replace('#', '').strip()
+        # Take only the first word if compound
+        single_word = tag.split()[0]
+        # Remove any special characters
+        clean_word = ''.join(c for c in single_word if c.isalnum())
+        if clean_word:
+            cleaned.append(clean_word)
+    return cleaned[:3]  # Ensure exactly 3 tags
+
 def _get_health_impact_analysis(video_analysis: Dict) -> Tuple[float, Dict]:
     """Get health impact analysis from GPT-3.5 Turbo."""
     logger.info("Getting health impact analysis")
     
-    # Initialize OpenAI client inside the function
     openai_client = OpenAI()
     
     system_prompt = """You are a longevity impact analyzer for short-form videos (typically 15 seconds). 
@@ -168,11 +185,11 @@ def _get_health_impact_analysis(video_analysis: Dict) -> Tuple[float, Dict]:
             "benefits": ["<benefit1>", "<benefit2>", ...],
             "risks": ["<risk1>", "<risk2>", ...],
             "recommendations": ["<improvement1>", "<improvement2>", ...],
-            "tags": ["<tag1>", "<tag2>", ...]
+            "tags": ["<tag1>", "<tag2>", "<tag3>"]
         }
     }
 
-    For tags: Generate 2-5 relevant hashtags that describe the content and health impact (e.g. #Fitness, #MentalHealth, #Meditation).
+    For tags: Generate EXACTLY 3 single-word hashtags (no compounds like 'MentalHealth'). Examples: #Fitness, #Health, #Diet
     """
     
     try:
@@ -185,15 +202,19 @@ def _get_health_impact_analysis(video_analysis: Dict) -> Tuple[float, Dict]:
             temperature=0.7
         )
         
-        # Log the raw response
         content = response.choices[0].message.content
         logger.info(f"Raw GPT response: {content}")
         
-        # Parse GPT's response
         analysis = json.loads(content)
+        score = float(analysis['score'])
+        
+        # Clean and ensure exactly 3 single-word tags, only if there's an impact
+        if 'reasoning' in analysis and 'tags' in analysis['reasoning']:
+            analysis['reasoning']['tags'] = _clean_tags(analysis['reasoning']['tags'], score)
+        
         logger.info(f"Parsed analysis: {json.dumps(analysis, indent=2)}")
         
-        return float(analysis['score']), analysis['reasoning']
+        return score, analysis['reasoning']
         
     except Exception as e:
         logger.error(f"Error in GPT analysis: {str(e)}")
@@ -266,12 +287,11 @@ def analyze_health(request: https_fn.CallableRequest) -> Dict:
         # Get health impact analysis
         score, reasoning = _get_health_impact_analysis(video_analysis)
         
-        # Update Firestore with tags included
+        # Update Firestore - remove the separate tags field
         video_doc.reference.update({
             'healthImpactScore': score,
-            'healthAnalysis': reasoning,
-            'analysisStatus': 'completed',
-            'tags': reasoning.get('tags', [])  # Add tags to the document
+            'healthAnalysis': reasoning,  # tags are already included in reasoning
+            'analysisStatus': 'completed'
         })
         
         logger.info(f"Analysis complete for video {video_id}")
