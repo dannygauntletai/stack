@@ -338,6 +338,15 @@ class ShortFormFeedViewModel: ObservableObject {
                     
                     let thumbnailUrl = data["thumbnailUrl"] as? String
                     
+                    // Extract tags from healthAnalysis
+                    var tags: [String] = []
+                    if let healthAnalysis = data["healthAnalysis"] as? [String: Any],
+                       let rawTags = healthAnalysis["tags"] as? [String] {
+                        tags = rawTags.map { tag in
+                            tag.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespaces)
+                        }
+                    }
+                    
                     // Fetch user data
                     let userDoc = try await self.db.collection("users").document(userId).getDocument()
                     let userData = userDoc.data()
@@ -378,7 +387,8 @@ class ShortFormFeedViewModel: ObservableObject {
                         likes: likes,
                         comments: comments,
                         shares: shares,
-                        thumbnailUrl: thumbnailUrl
+                        thumbnailUrl: thumbnailUrl,
+                        tags: tags
                     )
                 }
             }

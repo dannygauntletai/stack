@@ -6,16 +6,16 @@ struct VideoMetadataOverlay: View {
     let author: VideoAuthor
     let caption: String?
     let videoId: String
-    @State private var tags: [String] = []
+    let tags: [String]
     @State private var isFollowing = false
     @State private var isLoading = false
     @State private var isOwnVideo = false
-    @State private var hasLoadedTags = false
     
-    init(author: VideoAuthor, caption: String?, videoId: String) {
+    init(author: VideoAuthor, caption: String?, videoId: String, tags: [String] = []) {
         self.author = author
         self.caption = caption
         self.videoId = videoId
+        self.tags = tags
     }
     
     private let tiktokBlue = Color(red: 76/255, green: 176/255, blue: 249/255)
@@ -114,24 +114,6 @@ struct VideoMetadataOverlay: View {
                 }
             }
         }
-    }
-    
-    private func fetchVideoTags() {
-        db.collection("videos")
-            .document(videoId)
-            .getDocument { document, error in
-                if let healthAnalysisData = document?.get("healthAnalysis") as? [String: Any] {
-                    if let rawTags = healthAnalysisData["tags"] as? [String] {
-                        let cleanedTags = rawTags.map { tag in
-                            tag.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespaces)
-                        }
-                        DispatchQueue.main.async {
-                            self.tags = cleanedTags
-                            self.hasLoadedTags = true
-                        }
-                    }
-                }
-            }
     }
     
     private func colorForTag(_ tag: String) -> Color {
@@ -262,12 +244,8 @@ struct VideoMetadataOverlay: View {
             .onChange(of: author.id) { _, _ in
                 checkFollowStatus()
             }
-            .onChange(of: videoId) { _, _ in
-                fetchVideoTags()
-            }
             .onAppear {
                 checkFollowStatus()
-                fetchVideoTags()
             }
         }
     }

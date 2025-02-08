@@ -17,16 +17,6 @@ struct HomeVideoOverlay: View {
         ))
     }
     
-    // Sample metadata for test videos
-    private var metadata: (username: String, caption: String, profileImage: String?, tags: [String]) {
-        (
-            username: "creator123",
-            caption: "Check out this awesome video! 🎥",
-            profileImage: "https://picsum.photos/200",
-            tags: ["Trending", "Viral"]
-        )
-    }
-    
     // Create a stack video object with updated interaction counts
     private var stackVideo: Video {
         Video(
@@ -39,7 +29,8 @@ struct HomeVideoOverlay: View {
             likes: interaction.likes,
             comments: interaction.comments,
             shares: video.shares,
-            thumbnailUrl: video.thumbnailUrl
+            thumbnailUrl: video.thumbnailUrl,
+            tags: video.tags
         )
     }
     
@@ -53,7 +44,8 @@ struct HomeVideoOverlay: View {
             VideoMetadataOverlay(
                 author: video.author,
                 caption: video.caption,
-                videoId: video.id
+                videoId: video.id,
+                tags: video.tags
             )
             .frame(maxWidth: CGFloat.infinity, alignment: Alignment.leading)
             
