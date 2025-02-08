@@ -32,112 +32,87 @@ def _ensure_initialized():
     return _db
 
 def _analyze_video_content(video_url: str) -> Dict:
-    """Analyze video content using Google Video Intelligence and Vision API."""
+    """Analyze video content using Google Video Intelligence API."""
     logger.info("Starting video content analysis")
     
     try:
-        # Initialize clients inside the function
-        bucket = storage.bucket('tiktok-18d7a.firebasestorage.app')
+        # Initialize video intelligence client
         video_client = videointelligence.VideoIntelligenceServiceClient()
         
-        # Get video from Storage
-        path = video_url.replace('gs://', '')
-        if '/' in path:
-            blob_path = path.split('/', 1)[1]
-        else:
-            logger.error(f"Invalid storage URL format: {video_url}")
-            raise ValueError(f"Invalid storage URL format: {video_url}")
-            
-        logger.info(f"Attempting to download blob: {blob_path}")
-        blob = bucket.blob(blob_path)
+        # Configure the video intelligence request
+        features = [
+            videointelligence.Feature.LABEL_DETECTION,
+            videointelligence.Feature.OBJECT_TRACKING
+        ]
         
-        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_video:
-            try:
-                # Download video to temp file
-                blob.download_to_filename(temp_video.name)
-                
-                # Read video content
-                with open(temp_video.name, 'rb') as video_file:
-                    video_content = video_file.read()
-                
-                # Configure the video intelligence request
-                features = [
-                    videointelligence.Feature.LABEL_DETECTION,
-                    videointelligence.Feature.OBJECT_TRACKING
-                ]
-                
-                request = videointelligence.AnnotateVideoRequest(
-                    input_content=video_content,
-                    features=features
-                )
-                
-                # Make the video intelligence request
-                operation = video_client.annotate_video(request)
-                logger.info("Waiting for video analysis to complete...")
-                
-                # This is an async operation that might time out
-                try:
-                    result = operation.result(timeout=480)  # 8 minute timeout
-                except Exception as e:
-                    logger.error(f"Video analysis operation timed out or failed: {e}")
-                    raise ValueError("Video analysis failed to complete in time")
-                
-                video_analysis = {  # Changed from detected_items to video_analysis
-                    'texts': [],
-                    'labels': [],
-                    'objects': []
-                }
-                
-                # Process video intelligence annotations
-                for annotation_result in result.annotation_results:
-                    # Process text annotations
-                    if annotation_result.text_annotations:
-                        logger.info("Text Annotations:")
-                        for text in annotation_result.text_annotations:
-                            detected_text = text.text
-                            logger.info(f"Detected Text: {detected_text}")
-                            video_analysis['texts'].append(detected_text)
-                    
-                    # Process label annotations
-                    if annotation_result.segment_label_annotations:
-                        logger.info("Label Annotations:")
-                        for label in annotation_result.segment_label_annotations:
-                            label_info = {
-                                'description': label.entity.description,
-                                'confidence': label.segments[0].confidence
-                            }
-                            logger.info(f"Label: {label_info}")
-                            video_analysis['labels'].append(label_info)
-                    
-                    # Process object annotations
-                    if annotation_result.object_annotations:
-                        logger.info("Object Annotations:")
-                        for obj in annotation_result.object_annotations:
-                            obj_info = {
-                                'name': obj.entity.description,
-                                'confidence': obj.confidence
-                            }
-                            logger.info(f"Object: {obj_info}")
-                            video_analysis['objects'].append(obj_info)
-                
-                # Add environment assessment based on labels only
-                video_analysis['environment'] = {
-                    'setting': _categorize_environment(video_analysis['labels']),
-                    'safety_assessment': {
-                        'violence': 'UNKNOWN',
-                        'medical': 'UNKNOWN',
+        # Use the GCS URL directly
+        request = videointelligence.AnnotateVideoRequest(
+            input_uri=video_url,
+            features=features
+        )
+        
+        # Make the video intelligence request
+        operation = video_client.annotate_video(request)
+        logger.info("Waiting for video analysis to complete...")
+        
+        try:
+            result = operation.result(timeout=480)  # 8 minute timeout
+        except Exception as e:
+            logger.error(f"Video analysis operation timed out or failed: {e}")
+            raise ValueError("Video analysis failed to complete in time")
+        
+        video_analysis = {
+            'texts': [],
+            'labels': [],
+            'objects': []
+        }
+        
+        # Process video intelligence annotations
+        for annotation_result in result.annotation_results:
+            # Process text annotations
+            if annotation_result.text_annotations:
+                logger.info("Text Annotations:")
+                for text in annotation_result.text_annotations:
+                    detected_text = text.text
+                    logger.info(f"Detected Text: {detected_text}")
+                    video_analysis['texts'].append(detected_text)
+            
+            # Process label annotations
+            if annotation_result.segment_label_annotations:
+                logger.info("Label Annotations:")
+                for label in annotation_result.segment_label_annotations:
+                    label_info = {
+                        'description': label.entity.description,
+                        'confidence': label.segments[0].confidence
                     }
-                }
-                
-                logger.info("=== Processed Analysis Data ===")
-                logger.info(json.dumps(video_analysis, indent=2))
-                
-                return video_analysis  # Return video_analysis instead of detected_items
-                
-            finally:
-                if os.path.exists(temp_video.name):
-                    os.unlink(temp_video.name)
-                    
+                    logger.info(f"Label: {label_info}")
+                    video_analysis['labels'].append(label_info)
+            
+            # Process object annotations
+            if annotation_result.object_annotations:
+                logger.info("Object Annotations:")
+                for obj in annotation_result.object_annotations:
+                    obj_info = {
+                        'name': obj.entity.description,
+                        'confidence': obj.confidence
+                    }
+                    logger.info(f"Object: {obj_info}")
+                    video_analysis['objects'].append(obj_info)
+        
+        # Add environment assessment based on labels
+        video_analysis['environment'] = {
+            'setting': _categorize_environment(video_analysis['labels']),
+            'safety_assessment': {
+                'violence': 'UNKNOWN',
+                'medical': 'UNKNOWN',
+            }
+        }
+        
+        logger.info("=== Processed Analysis Data ===")
+        logger.info(json.dumps(video_analysis, indent=2))
+        
+        return video_analysis
+            
     except Exception as e:
         logger.error(f"Error in video analysis: {str(e)}")
         raise ValueError(f"Video analysis failed: {str(e)}")
@@ -161,7 +136,7 @@ def _categorize_environment(labels) -> str:
     return 'unknown'
 
 def _get_health_impact_analysis(video_analysis: Dict) -> Tuple[float, Dict]:
-    """Get health impact analysis from GPT-4."""
+    """Get health impact analysis from GPT-3.5 Turbo."""
     logger.info("Getting health impact analysis")
     
     # Initialize OpenAI client inside the function
@@ -192,18 +167,22 @@ def _get_health_impact_analysis(video_analysis: Dict) -> Tuple[float, Dict]:
             "longevity_impact": "<detailed explanation of life expectancy calculation>",
             "benefits": ["<benefit1>", "<benefit2>", ...],
             "risks": ["<risk1>", "<risk2>", ...],
-            "recommendations": ["<improvement1>", "<improvement2>", ...]
+            "recommendations": ["<improvement1>", "<improvement2>", ...],
+            "tags": ["<tag1>", "<tag2>", ...]
         }
     }
+
+    For tags: Generate 2-5 relevant hashtags that describe the content and health impact (e.g. #Fitness, #MentalHealth, #Meditation).
     """
     
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Analyze this content: {json.dumps(video_analysis)}"}
-            ]
+            ],
+            temperature=0.7
         )
         
         # Log the raw response
@@ -287,11 +266,12 @@ def analyze_health(request: https_fn.CallableRequest) -> Dict:
         # Get health impact analysis
         score, reasoning = _get_health_impact_analysis(video_analysis)
         
-        # Update Firestore
+        # Update Firestore with tags included
         video_doc.reference.update({
             'healthImpactScore': score,
             'healthAnalysis': reasoning,
-            'analysisStatus': 'completed'
+            'analysisStatus': 'completed',
+            'tags': reasoning.get('tags', [])  # Add tags to the document
         })
         
         logger.info(f"Analysis complete for video {video_id}")
