@@ -63,7 +63,6 @@ def _analyze_video_content(video_url: str) -> Dict:
                 # Configure the video intelligence request
                 features = [
                     videointelligence.Feature.LABEL_DETECTION,
-                    videointelligence.Feature.TEXT_DETECTION,
                     videointelligence.Feature.OBJECT_TRACKING
                 ]
                 
@@ -78,7 +77,7 @@ def _analyze_video_content(video_url: str) -> Dict:
                 
                 # This is an async operation that might time out
                 try:
-                    result = operation.result(timeout=540)  # 9 minute timeout
+                    result = operation.result(timeout=480)  # 8 minute timeout
                 except Exception as e:
                     logger.error(f"Video analysis operation timed out or failed: {e}")
                     raise ValueError("Video analysis failed to complete in time")
