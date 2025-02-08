@@ -136,11 +136,7 @@ def _categorize_environment(labels) -> str:
     return 'unknown'
 
 def _clean_tags(tags: list, score: float = 0) -> list:
-    """Clean and format tags to be single words. Returns empty list if score is 0."""
-    # If no health impact, return empty list
-    if score == 0:
-        return []
-        
+    """Clean and format tags. Always return tags regardless of score."""
     cleaned = []
     for tag in tags:
         # Remove hashtag symbol and any whitespace
@@ -150,8 +146,10 @@ def _clean_tags(tags: list, score: float = 0) -> list:
         # Remove any special characters
         clean_word = ''.join(c for c in single_word if c.isalnum())
         if clean_word:
-            cleaned.append(clean_word)
-    return cleaned[:3]  # Ensure exactly 3 tags
+            cleaned.append(clean_word.lower())  # Ensure lowercase
+    
+    # Return all unique tags
+    return list(set(cleaned))
 
 def _get_health_impact_analysis(video_analysis: Dict) -> Tuple[float, Dict]:
     """Get health impact analysis from GPT-3.5 Turbo."""

@@ -338,12 +338,13 @@ class ShortFormFeedViewModel: ObservableObject {
                     
                     let thumbnailUrl = data["thumbnailUrl"] as? String
                     
-                    // Extract tags from healthAnalysis
+                    // Extract tags from healthAnalysis and normalize them
                     var tags: [String] = []
                     if let healthAnalysis = data["healthAnalysis"] as? [String: Any],
                        let rawTags = healthAnalysis["tags"] as? [String] {
                         tags = rawTags.map { tag in
-                            tag.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespaces)
+                            let normalizedTag = tag.lowercased().trimmingCharacters(in: .whitespaces)
+                            return normalizedTag.hasPrefix("#") ? normalizedTag : "#\(normalizedTag)"
                         }
                     }
                     
