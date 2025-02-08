@@ -69,11 +69,6 @@ final class AuthenticationService: AuthenticationServiceProtocol {
         
         // Save user data
         try await userRef.setData(user.asDictionary)
-        
-        // Initialize empty collections with placeholder documents
-        try await userRef.collection("followers").document("placeholder").setData(["createdAt": Date()])
-        try await userRef.collection("following").document("placeholder").setData(["createdAt": Date()])
-        try await userRef.collection("restacks").document("placeholder").setData(["createdAt": Date()])
     }
     
     func createUser(email: String, password: String, username: String, firstName: String, lastName: String) async throws -> User {
@@ -102,12 +97,7 @@ final class AuthenticationService: AuthenticationServiceProtocol {
             // Initialize empty collections for social stats
             let db = Firestore.firestore()
             let userRef = db.collection("users").document(uid)
-            
-            // Create empty collections with a placeholder document
-            try await userRef.collection("followers").document("placeholder").setData(["createdAt": Date()])
-            try await userRef.collection("following").document("placeholder").setData(["createdAt": Date()])
-            try await userRef.collection("restacks").document("placeholder").setData(["createdAt": Date()])
-            
+                      
             return user
         } catch {
             throw error

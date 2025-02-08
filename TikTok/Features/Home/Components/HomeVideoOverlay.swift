@@ -23,7 +23,7 @@ struct HomeVideoOverlay: View {
             username: "creator123",
             caption: "Check out this awesome video! 🎥",
             profileImage: "https://picsum.photos/200",
-            tags: ["Trending", "Viral"]  // Capitalized for better visual appearance
+            tags: ["Trending", "Viral"]
         )
     }
     
@@ -53,7 +53,7 @@ struct HomeVideoOverlay: View {
             VideoMetadataOverlay(
                 author: video.author,
                 caption: video.caption,
-                tags: []  // Parse tags from caption if needed
+                videoId: video.id
             )
             .frame(maxWidth: CGFloat.infinity, alignment: Alignment.leading)
             

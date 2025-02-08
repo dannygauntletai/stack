@@ -5,10 +5,18 @@ import FirebaseAuth
 struct VideoMetadataOverlay: View {
     let author: VideoAuthor
     let caption: String?
-    let tags: [String]
+    let videoId: String
+    @State private var tags: [String] = []
     @State private var isFollowing = false
     @State private var isLoading = false
     @State private var isOwnVideo = false
+    @State private var hasLoadedTags = false
+    
+    init(author: VideoAuthor, caption: String?, videoId: String) {
+        self.author = author
+        self.caption = caption
+        self.videoId = videoId
+    }
     
     private let tiktokBlue = Color(red: 76/255, green: 176/255, blue: 249/255)
     private let db = Firestore.firestore()
@@ -108,6 +116,42 @@ struct VideoMetadataOverlay: View {
         }
     }
     
+    private func fetchVideoTags() {
+        db.collection("videos")
+            .document(videoId)
+            .getDocument { document, error in
+                if let healthAnalysisData = document?.get("healthAnalysis") as? [String: Any] {
+                    if let rawTags = healthAnalysisData["tags"] as? [String] {
+                        let cleanedTags = rawTags.map { tag in
+                            tag.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespaces)
+                        }
+                        DispatchQueue.main.async {
+                            self.tags = cleanedTags
+                            self.hasLoadedTags = true
+                        }
+                    }
+                }
+            }
+    }
+    
+    private func colorForTag(_ tag: String) -> Color {
+        // Define a set of pleasant colors
+        let colors: [Color] = [
+            .blue.opacity(0.8),
+            .green.opacity(0.8),
+            .purple.opacity(0.8),
+            .orange.opacity(0.8),
+            .pink.opacity(0.8),
+            .teal.opacity(0.8)
+        ]
+        
+        // Use the hash of the tag string to consistently pick a color
+        let hash = abs(tag.hashValue)
+        let index = hash % colors.count
+        
+        return colors[index]
+    }
+    
     var body: some View {
         GeometryReader { geometry in
             VStack(alignment: .leading, spacing: 0) {
@@ -170,7 +214,8 @@ struct VideoMetadataOverlay: View {
                     .padding(.top, 24)
                     
                     // Caption and tags container
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Caption
                         if let caption = caption, !caption.isEmpty {
                             Text(caption)
                                 .font(.system(size: 15))
@@ -178,7 +223,6 @@ struct VideoMetadataOverlay: View {
                                 .lineLimit(2)
                                 .frame(maxWidth: geometry.size.width * 0.75, alignment: .leading)
                                 .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
-                                .padding(.top, 2)
                         } else {
                             Text("No description provided")
                                 .font(.system(size: 15))
@@ -187,9 +231,9 @@ struct VideoMetadataOverlay: View {
                                 .lineLimit(1)
                                 .frame(maxWidth: geometry.size.width * 0.75, alignment: .leading)
                                 .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
-                                .padding(.top, 2)
                         }
                         
+                        // Tags
                         if !tags.isEmpty {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 8) {
@@ -201,7 +245,7 @@ struct VideoMetadataOverlay: View {
                                             .padding(.vertical, 4)
                                             .background(
                                                 Capsule()
-                                                    .fill(Color.black.opacity(0.25))
+                                                    .fill(colorForTag(tag).opacity(0.75))
                                             )
                                     }
                                 }
@@ -218,8 +262,12 @@ struct VideoMetadataOverlay: View {
             .onChange(of: author.id) { _, _ in
                 checkFollowStatus()
             }
+            .onChange(of: videoId) { _, _ in
+                fetchVideoTags()
+            }
             .onAppear {
                 checkFollowStatus()
+                fetchVideoTags()
             }
         }
     }
