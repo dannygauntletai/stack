@@ -14,6 +14,7 @@
 		6F0C72C32D51A92800FD227D /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 6F0C72C22D51A92800FD227D /* FirebaseFirestore */; };
 		6F0C72C52D51A92800FD227D /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = 6F0C72C42D51A92800FD227D /* FirebaseFunctions */; };
 		6F0C72C72D51A92800FD227D /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 6F0C72C62D51A92800FD227D /* FirebaseStorage */; };
+		6FB3AEF92D582A0E00899DFE /* PineconeSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 6FB3AEF82D582A0E00899DFE /* PineconeSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +37,7 @@
 				6F0C72BB2D51A92800FD227D /* FirebaseAnalytics in Frameworks */,
 				6F0C72BF2D51A92800FD227D /* FirebaseCore in Frameworks */,
 				6F0C72C12D51A92800FD227D /* FirebaseDatabase in Frameworks */,
+				6FB3AEF92D582A0E00899DFE /* PineconeSwift in Frameworks */,
 				6F0C72C52D51A92800FD227D /* FirebaseFunctions in Frameworks */,
 				6F0C72C72D51A92800FD227D /* FirebaseStorage in Frameworks */,
 				6F0C72C32D51A92800FD227D /* FirebaseFirestore in Frameworks */,
@@ -89,6 +91,7 @@
 				6F0C72C22D51A92800FD227D /* FirebaseFirestore */,
 				6F0C72C42D51A92800FD227D /* FirebaseFunctions */,
 				6F0C72C62D51A92800FD227D /* FirebaseStorage */,
+				6FB3AEF82D582A0E00899DFE /* PineconeSwift */,
 			);
 			productName = TikTok;
 			productReference = 6F0C72A82D51A8DD00FD227D /* TikTok.app */;
@@ -120,6 +123,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				6F0C72B92D51A92800FD227D /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				6FB3AEF72D582A0E00899DFE /* XCRemoteSwiftPackageReference "PineconeSwift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6F0C72A92D51A8DD00FD227D /* Products */;
@@ -361,6 +365,14 @@
 				minimumVersion = 11.8.0;
 			};
 		};
+		6FB3AEF72D582A0E00899DFE /* XCRemoteSwiftPackageReference "PineconeSwift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ArchieGoodwin/PineconeSwift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.7.4;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -398,6 +410,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 6F0C72B92D51A92800FD227D /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseStorage;
+		};
+		6FB3AEF82D582A0E00899DFE /* PineconeSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6FB3AEF72D582A0E00899DFE /* XCRemoteSwiftPackageReference "PineconeSwift" */;
+			productName = PineconeSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

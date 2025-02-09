@@ -1,5 +1,5 @@
 {
-  "originHash" : "c63c63846d9c539229e96de38d6af51417e28c0ee9a0bc48bd0f0f19d923c329",
+  "originHash" : "430ddc706aacbde958f7fa9c6d1353be470bf82f4aa1e9b6ba9b1dcf5baabbd2",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -98,6 +98,15 @@
       "state" : {
         "revision" : "b7e1104502eca3a213b46303391ca4d3bc8ddec1",
         "version" : "2.30910.0"
+      }
+    },
+    {
+      "identity" : "pineconeswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ArchieGoodwin/PineconeSwift",
+      "state" : {
+        "revision" : "c13d1e1a0aa81d23f166dfbef3999b162c1557dd",
+        "version" : "0.7.4"
       }
     },
     {

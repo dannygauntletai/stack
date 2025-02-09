@@ -8,6 +8,7 @@ class ShortFormFeedViewModel: ObservableObject {
     @Published private(set) var videos: [Video] = []
     @Published private(set) var loadingState: LoadingState = .idle
     @Published private(set) var likedVideoIds: Set<String> = []
+    @Published private(set) var currentUserId: String?
     
     private var currentPage = 0
     private var isLoading = false
@@ -21,6 +22,9 @@ class ShortFormFeedViewModel: ObservableObject {
     
     private var videoListeners: [String: ListenerRegistration] = [:]
     
+    private let interactionService = UserInteractionService.shared
+    private var lastVideoStartTime: Date?
+    
     deinit {
         likesListener?.remove()
         removeAllVideoListeners()
@@ -28,7 +32,9 @@ class ShortFormFeedViewModel: ObservableObject {
     
     init(isFollowingFeed: Bool = false) {
         self.isFollowingFeed = isFollowingFeed
+        self.currentUserId = Auth.auth().currentUser?.uid
         setupLikesListener()
+        setupAuthStateListener()
     }
     
     enum LoadingState {
@@ -151,6 +157,9 @@ class ShortFormFeedViewModel: ObservableObject {
             // Update cache immediately for better UX
             likeStatusCache.setObject(NSNumber(value: true), forKey: video.id as NSString)
         }
+        
+        // Track the interaction
+        interactionService.trackLike(videoId: video.id, isLiked: !isLiked)
         
         // Let the snapshot listener handle the state updates
         try await batch.commit()
@@ -447,6 +456,29 @@ class ShortFormFeedViewModel: ObservableObject {
                     self.loadingState = .error(error)
                 }
             }
+        }
+    }
+    
+    // Track video watch time when switching videos
+    func trackVideoView(videoId: String, isStarting: Bool) {
+        if isStarting {
+            lastVideoStartTime = Date()
+        } else if let startTime = lastVideoStartTime {
+            let duration = Date().timeIntervalSince(startTime)
+            interactionService.trackWatchTime(videoId: videoId, duration: duration)
+            lastVideoStartTime = nil
+        }
+    }
+    
+    // Add method to track skips
+    func trackSkip(videoId: String) {
+        interactionService.trackSkip(videoId: videoId)
+    }
+    
+    private func setupAuthStateListener() {
+        Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            self?.currentUserId = user?.uid
+            self?.interactionService.updateUserId(user?.uid)
         }
     }
 }

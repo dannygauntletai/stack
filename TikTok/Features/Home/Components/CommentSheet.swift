@@ -11,6 +11,7 @@ class CommentViewModel: ObservableObject {
     private let videoId: String
     private let pageSize = 20
     private let storage = Storage.storage()
+    private let interactionService = UserInteractionService.shared
     
     init(videoId: String) {
         self.videoId = videoId
@@ -167,6 +168,9 @@ class CommentViewModel: ObservableObject {
             // Insert at the beginning since comments are ordered by newest first
             self.comments.insert(newComment, at: 0)
         }
+        
+        // Track the comment
+        interactionService.trackComment(videoId: videoId)
     }
 }
 

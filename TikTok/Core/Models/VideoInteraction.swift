@@ -1,7 +1,10 @@
 import Foundation
 
 struct VideoInteraction {
-    var likes: Int
-    var comments: Int
-    var isLiked: Bool
+    let watchTime: Double
+    let isLiked: Bool
+    let commentCount: Int
+    let isStacked: Bool
+    let isSkipped: Bool
+    let userId: String?
 } 

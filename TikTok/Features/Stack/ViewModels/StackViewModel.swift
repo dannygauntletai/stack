@@ -150,6 +150,9 @@ class StackViewModel: ObservableObject {
                     "addedAt": Timestamp(date: Date())
                 ])
             
+            // Track the stack interaction
+            UserInteractionService.shared.trackStack(videoId: video.id)
+            
             await fetchStackCounts()
         } catch {
             print("Error adding to stack: \(error)")

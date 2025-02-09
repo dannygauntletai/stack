@@ -3,17 +3,20 @@ import SwiftUI
 struct HomeVideoOverlay: View {
     let video: Video
     @EnvironmentObject var viewModel: ShortFormFeedViewModel
-    @State private var interaction: VideoInteraction
+    @State private var videoInteraction: VideoInteraction
     @State private var showStackSelection = false
     @State private var showComments = false
     @State private var isPerformingAction = false
     
     init(video: Video) {
         self.video = video
-        self._interaction = State(initialValue: VideoInteraction(
-            likes: video.likes,
-            comments: video.comments,
-            isLiked: false
+        self._videoInteraction = State(initialValue: VideoInteraction(
+            watchTime: 0,
+            isLiked: false,
+            commentCount: video.comments,
+            isStacked: false,
+            isSkipped: false,
+            userId: nil
         ))
     }
     
@@ -26,8 +29,8 @@ struct HomeVideoOverlay: View {
             createdAt: video.createdAt,
             userId: video.userId,
             author: video.author,
-            likes: interaction.likes,
-            comments: interaction.comments,
+            likes: video.likes,
+            comments: videoInteraction.commentCount,
             shares: video.shares,
             thumbnailUrl: video.thumbnailUrl,
             tags: video.tags
@@ -36,6 +39,18 @@ struct HomeVideoOverlay: View {
     
     private var isLiked: Bool {
         viewModel.isVideoLiked(video.id)
+    }
+    
+    // Update interaction when user changes
+    private func updateInteraction() {
+        videoInteraction = VideoInteraction(
+            watchTime: videoInteraction.watchTime,
+            isLiked: videoInteraction.isLiked,
+            commentCount: videoInteraction.commentCount,
+            isStacked: videoInteraction.isStacked,
+            isSkipped: videoInteraction.isSkipped,
+            userId: viewModel.currentUserId
+        )
     }
     
     var body: some View {
@@ -123,6 +138,12 @@ struct HomeVideoOverlay: View {
         }
         .sheet(isPresented: $showStackSelection) {
             StackSelectionModal(video: stackVideo)
+        }
+        .onAppear {
+            updateInteraction()
+        }
+        .onReceive(viewModel.$currentUserId) { _ in
+            updateInteraction()
         }
     }
     
