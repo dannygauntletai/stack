@@ -6,15 +6,11 @@ import FirebaseFunctions
 
 class VideoService {
     static let shared = VideoService()
-    private let functions: Functions
-    
-    init() {
-        functions = Functions.functions(region: "us-central1")
-        
-        #if DEBUG
-        functions.useEmulator(withHost: "localhost", port: 5001)
-        #endif
-    }
+    #if DEBUG
+    private let baseURL = "http://localhost:8000"
+    #else
+    private let baseURL = "https://your-production-url.com"  // Update this when deploying
+    #endif
     
     func analyzeVideoHealth(videoUrl: String) async throws {
         guard let user = Auth.auth().currentUser else {
@@ -26,13 +22,7 @@ class VideoService {
         }
         
         // Get and verify ID token
-        do {
-            let token = try await user.getIDToken()
-            let db = Firestore.firestore()
-            _ = try await db.collection("users").document(user.uid).getDocument()
-        } catch {
-            throw error
-        }
+        let token = try await user.getIDToken()
         
         // Validate URL format
         guard videoUrl.hasPrefix("gs://tiktok-18d7a.firebasestorage.app/videos/") else {
@@ -46,29 +36,50 @@ class VideoService {
             )
         }
         
-        do {
-            let token = try await user.getIDToken(forcingRefresh: true)
-            let function = functions.httpsCallable("analyze_health")
-            let data = ["videoUrl": videoUrl] as [String: Any]
-            
-            let result = try await function.call(data)
-            
-            guard let responseDict = result.data as? [String: Any],
-                  let success = responseDict["success"] as? Bool else {
-                throw NSError(domain: "VideoService", code: 500, userInfo: [NSLocalizedDescriptionKey: "Invalid response format"])
-            }
-            
-            if !success {
-                throw NSError(
-                    domain: "VideoService",
-                    code: 500,
-                    userInfo: [
-                        NSLocalizedDescriptionKey: responseDict["error"] as? String ?? "Unknown error"
-                    ]
-                )
-            }
-        } catch {
-            throw error
+        // Create URL request
+        guard let url = URL(string: "\(baseURL)/analyze_health") else {
+            throw NSError(domain: "VideoService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid API URL"])
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body = ["videoUrl": videoUrl]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        // Add before sending request
+        print("Sending request to \(url)")
+        print("Request body:", String(data: request.httpBody ?? Data(), encoding: .utf8) ?? "")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "VideoService", code: 500, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw NSError(
+                domain: "VideoService",
+                code: httpResponse.statusCode,
+                userInfo: [NSLocalizedDescriptionKey: "Server error: \(httpResponse.statusCode)"]
+            )
+        }
+        
+        guard let responseDict = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let success = responseDict["success"] as? Bool else {
+            throw NSError(domain: "VideoService", code: 500, userInfo: [NSLocalizedDescriptionKey: "Invalid response format"])
+        }
+        
+        if !success {
+            throw NSError(
+                domain: "VideoService",
+                code: 500,
+                userInfo: [
+                    NSLocalizedDescriptionKey: responseDict["error"] as? String ?? "Unknown error"
+                ]
+            )
         }
     }
 } 
