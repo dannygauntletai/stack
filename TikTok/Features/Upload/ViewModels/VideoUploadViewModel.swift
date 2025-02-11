@@ -233,16 +233,19 @@ final class VideoUploadViewModel: ObservableObject, @unchecked Sendable {
                         // After successful upload, trigger health analysis
                         Task {
                             do {
+                                // Health analysis will also handle vectorization
                                 try await VideoService.shared.analyzeVideoHealth(videoUrl: videoURL)
+                                let updatedVideo = try await VideoService.shared.getVideoDetails(videoId: video.id)
+                                completion(.success(updatedVideo))
                             } catch {
                                 print("Health analysis error: \(error)")
-                                // Don't fail the upload if health analysis fails
+                                // Still complete the upload even if analysis fails
+                                completion(.success(video))
                             }
                         }
                         
                         self.isUploading = false
                         self.uploadStatus = .completed
-                        completion(.success(video))
                         self.uploadComplete = true
                     }
                 }
