@@ -56,70 +56,78 @@ async def get_video(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/analyze")
-async def analyze_video(
-    request: Request,
-    db_service: DBServiceDep
-) -> Dict:
+async def analyze_video(request: Request, db_service: DBServiceDep) -> Dict:
     """Analyze video content and health impact"""
+    logger.info("Starting video analysis")
     try:
         # Verify authentication
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
+            logger.error("No valid authorization header")
             raise HTTPException(status_code=401, detail="No valid authorization header")
             
         token = auth_header.split(' ')[1]
         try:
             decoded_token = auth.verify_id_token(token)
+            logger.info(f"Authentication successful for user: {decoded_token['uid']}")
         except Exception as e:
+            logger.error(f"Token verification failed: {str(e)}", exc_info=True)
             raise HTTPException(status_code=401, detail="Invalid token")
 
         # Get request data
         body = await request.json()
         video_url = body.get("videoUrl")
         if not video_url:
+            logger.error("Missing videoUrl in request")
             raise HTTPException(status_code=400, detail="Missing videoUrl in request")
 
+        logger.info(f"Processing video URL: {video_url}")
+
         # Get video document
-        video_id, video_data = await db_service.get_video_document(video_url)
+        try:
+            video_id, video_data = await db_service.get_video_document(video_url)
+            logger.info(f"Retrieved video document with ID: {video_id}")
+        except Exception as e:
+            logger.error(f"Error retrieving video document: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
         
         if not video_data:
+            logger.error("Video not found")
             raise HTTPException(status_code=404, detail="Video not found")
             
         # Verify ownership
         if video_data.get('userId') != decoded_token['uid']:
+            logger.error(f"Permission denied for user {decoded_token['uid']} on video {video_id}")
             raise HTTPException(status_code=403, detail="You don't have permission to analyze this video")
 
         # Update status to processing
         await db_service.update_video_status(video_id, 'processing')
+        logger.info(f"Updated video {video_id} status to processing")
         
-        # Analyze video content
-        video_analysis = await VideoService.analyze_video_content(video_url)
-        
-        # Get health impact analysis
-        score, reasoning = await HealthService.analyze_health_impact(video_analysis)
-        
-        # Update results
-        await db_service.update_video_status(video_id, 'completed', {
-            'healthImpactScore': score,
-            'healthAnalysis': reasoning
-        })
+        try:
+            # Analyze video content
+            logger.info("Starting video content analysis")
+            video_analysis = await VideoService.analyze_video_content(video_url)
+            logger.info("Video content analysis completed")
+            
+            # Get health impact analysis
+            logger.info("Starting health impact analysis")
+            score, reasoning = await HealthService.analyze_health_impact(video_analysis)
+            logger.info("Health impact analysis completed")
+            
+            # Update results
+            await db_service.update_video_status(video_id, 'completed', {
+                'healthImpactScore': score,
+                'healthAnalysis': reasoning
+            })
+            logger.info(f"Updated video {video_id} with analysis results")
 
-        # Comment out vectorization for now
-        # try:
-        #     vector_data = await VectorService.vectorize_video({
-        #         'id': video_id,
-        #         'videoUrl': video_url,
-        #         'caption': video_data.get('caption', ''),
-        #         'healthAnalysis': reasoning
-        #     })
-        #     
-        #     # Update video with vector metadata
-        #     await db_service.update_video_status(video_id, 'vectorized', {
-        #         'vectorId': vector_data['id'],
-        #         'vectorMetadata': vector_data['metadata']
-        #     })
-        # except Exception as e:
-        #     logger.error(f"Vectorization failed: {str(e)}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Analysis failed: {str(e)}", exc_info=True)
+            await db_service.update_video_status(video_id, 'failed', {
+                'error': str(e)
+            })
+            raise HTTPException(status_code=500, detail=str(e))
         
         return {
             'success': True,
@@ -128,6 +136,8 @@ async def analyze_video(
             'videoId': video_id
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in analyze_video: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
