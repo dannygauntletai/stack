@@ -100,4 +100,12 @@ async def health_check(db_service: DBServiceDep):
 @router.get("/health")
 async def health_check():
     # Use the base URL for any internal API calls if needed
-    return {"status": "healthy", "api_base_url": Config.BASE_URL} 
+    return {"status": "healthy", "api_base_url": Config.BASE_URL}
+
+@router.get("/firebase-status")
+async def firebase_status():
+    try:
+        firebase_app = FirebaseService.get_app()
+        return {"status": "Firebase is initialized", "app": str(firebase_app)}
+    except Exception as e:
+        return {"status": "Firebase initialization failed", "error": str(e)} 
