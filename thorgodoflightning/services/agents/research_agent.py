@@ -26,30 +26,53 @@ class ResearchAgent(BaseAgent):
 
     async def _tavily_search(self, product: Dict) -> List[Dict]:
         """Perform Tavily search with comprehensive product info"""
-        # Construct a detailed search query
-        search_query = f"{product['title']} product review"
-        if 'description' in product:
-            search_query += f" {product['description']}"
-        if 'asin' in product:
-            search_query += f" amazon {product['asin']}"
+        # Build search query using all available product info
+        search_terms = []
+        
+        if product.get('title'):
+            search_terms.append(f"\"{product['title']}\"")  # Exact match
             
+        if product.get('asin'):
+            search_terms.append(f"site:amazon.com {product['asin']}")
+            
+        # Add review terms
+        search_terms.append("product review specifications features")
+        
+        # Join all terms
+        search_query = " ".join(search_terms)
+        logger.debug(f"Search query: {search_query}")
+        
         async with aiohttp.ClientSession() as session:
             url = "https://api.tavily.com/search"
+            
             headers = {
                 "content-type": "application/json",
-                "api-key": self.tavily_api_key
+                "Authorization": f"Bearer {self.tavily_api_key}"  # Correct header format
             }
+            
             payload = {
                 "query": search_query,
                 "search_depth": "advanced",
                 "include_answer": True,
-                "max_results": 8,  # Increased results
-                "search_type": "products"  # Specify product search
+                "max_results": 5,
+                "search_type": "products",
+                "include_domains": ["amazon.com"],  # Focus on Amazon
+                "exclude_domains": ["pinterest.com", "facebook.com", "instagram.com"]
             }
             
-            async with session.post(url, json=payload, headers=headers) as response:
-                result = await response.json()
-                return result.get('results', [])
+            try:
+                async with session.post(url, json=payload, headers=headers) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"Tavily error: {error_text}")
+                        return []
+                        
+                    result = await response.json()
+                    return result.get('results', [])
+                    
+            except Exception as e:
+                logger.error(f"Tavily request failed: {str(e)}")
+                return []
 
     async def _generate_summary(self, product: Dict, search_results: List[Dict]) -> Dict:
         """Generate a summary using OpenAI"""
