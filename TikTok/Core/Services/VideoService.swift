@@ -7,11 +7,7 @@ import FirebaseFunctions
 class VideoService {
     static let shared = VideoService()
     
-    #if DEBUG
-    private let baseURL = "http://localhost:8000"
-    #else
-    private let baseURL = "https://your-production-url.com"  // Update this when deploying
-    #endif
+    private let baseURL = AppEnvironment.baseURL
     
     // MARK: - Helper Methods
     private func createVideo(from dict: [String: Any]) throws -> Video {
