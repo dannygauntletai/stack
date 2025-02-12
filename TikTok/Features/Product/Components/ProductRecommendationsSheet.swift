@@ -114,7 +114,6 @@ struct ProductRecommendationsSheet: View {
         // Call API if not in cache
         Task {
             do {
-                let url = URL(string: "http://localhost:8000/products/supplements")!
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
