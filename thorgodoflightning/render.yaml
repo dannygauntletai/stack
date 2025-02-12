@@ -16,7 +16,9 @@ services:
       - key: BASE_URL
         value: https://stack-54k8.onrender.com
     envVarsFromFiles:
+      # - key: FIREBASE_CREDENTIALS
+      #   fromFile: service-account.json
       - key: FIREBASE_CREDENTIALS
-        fromFile: service-account.json
+        fromFile: .env
     healthCheckPath: /health
     autoDeploy: true 
