@@ -35,7 +35,7 @@ class FirebaseService:
                 cls._instance = firebase_admin.initialize_app(cred)
                 cls._db = firestore.client()
                 
-                logger.info("Firebase initialized successfully")
+                logger.info(f"Firebase initialized successfully for environment: {Config.ENVIRONMENT}")
             except Exception as e:
                 logger.error(f"Failed to initialize Firebase: {str(e)}", exc_info=True)
                 raise

@@ -54,6 +54,7 @@ struct UploadView: View {
             .preferredColorScheme(.dark)
             .sheet(isPresented: $showCamera) {
                 CameraView()
+                    .interactiveDismissDisabled()
             }
             .sheet(isPresented: $showImagePicker) {
                 MediaPickerView { url in

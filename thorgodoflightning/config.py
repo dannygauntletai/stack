@@ -29,6 +29,7 @@ class Config:
     # Firebase
     FIREBASE_STORAGE_BUCKET: str = os.getenv('STORAGE_BUCKET_NAME')
     SERVICE_ACCOUNT_EMAIL: str = os.getenv('SERVICE_ACCOUNT_EMAIL')
+    FIREBASE_CREDENTIALS: str = os.getenv('FIREBASE_CREDENTIALS')
     
     # Google Cloud API
     GOOGLE_CLOUD_VISION_API_KEY: str = os.getenv('GOOGLE_CLOUD_VISION_API_KEY')
@@ -58,7 +59,7 @@ class Config:
 
     @classmethod
     def is_development(cls) -> bool:
-        return cls.ENVIRONMENT != 'production'
+        return cls.ENVIRONMENT == 'development'
 
     @classmethod
     def is_production(cls) -> bool:

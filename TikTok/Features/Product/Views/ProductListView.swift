@@ -4,6 +4,7 @@ struct ProductListView: View {
     let category: ProductCategory
     @StateObject private var viewModel = SavedProductsViewModel()
     @State private var selectedProducts: Set<String> = []
+    @State private var showComparisonView = false
     
     private let columns = [
         GridItem(.flexible()),
@@ -56,11 +57,15 @@ struct ProductListView: View {
             if !selectedProducts.isEmpty {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Start") {
-                        // TODO: Add comparison action
-                    }
+                        // Show comparison view
+                        showComparisonView = true
+                    } 
                     .foregroundColor(.blue)
                 }
             }
+        }
+        .sheet(isPresented: $showComparisonView) {
+            ProductComparisonView(selectedProducts: viewModel.products.filter { selectedProducts.contains($0.id) })
         }
         .task {
             await viewModel.fetchProducts(categoryId: category.id)

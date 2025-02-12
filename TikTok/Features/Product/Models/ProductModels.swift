@@ -118,3 +118,61 @@ struct Product: Codable {
         case isPrime = "is_prime"
     }
 }
+
+enum ResearchStatus {
+    case starting
+    case inProgress
+    case completed
+    case error
+    
+    var message: String {
+        switch self {
+        case .starting:
+            return "Starting research..."
+        case .inProgress:
+            return "Analyzing products..."
+        case .completed:
+            return "Research completed"
+        case .error:
+            return "Error occurred"
+        }
+    }
+}
+
+struct ResearchResults: Codable {
+    let comparisons: [ProductComparison]
+    let sources: [ResearchSource]
+    let timestamp: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case comparisons
+        case sources
+        case timestamp
+    }
+}
+
+struct ProductComparison: Codable, Identifiable {
+    let id: String
+    let category: String
+    let analysis: String
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case category
+        case analysis
+    }
+}
+
+struct ResearchSource: Codable, Identifiable {
+    let id: String
+    let title: String
+    let url: String
+    let relevanceScore: Double
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case url
+        case relevanceScore = "relevance_score"
+    }
+}

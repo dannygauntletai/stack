@@ -1,12 +1,13 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Response
 from typing import Annotated
 from dependencies import get_db_service
 from services.db_service import DatabaseService
 from services.firebase_service import FirebaseService
 from services.vector_service import VectorService
+from services.health_service import HealthService
+from config import Config
 import logging
 import os
-from config import Config
 
 router = APIRouter(
     prefix="/health",
@@ -99,8 +100,28 @@ async def health_check(db_service: DBServiceDep):
 
 @router.get("/health")
 async def health_check():
-    # Use the base URL for any internal API calls if needed
-    return {"status": "healthy", "api_base_url": Config.BASE_URL}
+    """Health check endpoint"""
+    try:
+        # Basic health check
+        status = await HealthService.check_health()
+        
+        # Only perform detailed checks in development
+        if Config.is_development():
+            # Add development-specific health checks
+            logger.debug("Running development health checks")
+            # Add any dev-specific checks here
+        
+        return {
+            "status": "healthy" if status else "unhealthy",
+            "environment": Config.ENVIRONMENT,
+            "debug": Config.DEBUG
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}", exc_info=True)
+        return Response(
+            content={"status": "unhealthy", "error": str(e)},
+            status_code=500
+        )
 
 @router.get("/firebase-status")
 async def firebase_status():

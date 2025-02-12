@@ -5,12 +5,16 @@ struct CameraView: View {
     @StateObject private var cameraManager = CameraManager()
     @Environment(\.dismiss) private var dismiss
     @State private var recordedVideoURL: URL?
+    @State private var showVideoPreview = false
     
     var body: some View {
         ZStack {
             if cameraManager.permissionGranted {
-                CameraPreviewView(session: cameraManager.session)
-                    .ignoresSafeArea()
+                GeometryReader { geometry in
+                    CameraPreviewView(session: cameraManager.session)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .ignoresSafeArea()
+                }
                 
                 // Camera controls overlay
                 VStack {
@@ -47,43 +51,29 @@ struct CameraView: View {
                     .padding(.bottom, 30)
                 }
             } else {
-                VStack(spacing: 20) {
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.white.opacity(0.6))
-                    
-                    Text("Camera access is required")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                    
-                    Text("Please enable camera access in Settings to record videos")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                    
-                    Button(action: {
-                        UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!)
-                    }) {
-                        Text("Open Settings")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.black)
-                            .frame(width: 160)
-                            .padding(.vertical, 12)
-                            .background(Color.white)
-                            .cornerRadius(4)
-                    }
-                    .padding(.top, 10)
-                }
+                CameraPermissionView()
             }
         }
         .background(Color.black)
+        .sheet(isPresented: $showVideoPreview) {
+            if let url = recordedVideoURL {
+                PostVideoView(videoURL: url, showURLInput: .constant(false))
+            }
+        }
         .onAppear {
             setupNotifications()
+            // Start session when view appears
+            if cameraManager.permissionGranted {
+                DispatchQueue.global(qos: .userInitiated).async {
+                    if !self.cameraManager.session.isRunning {
+                        self.cameraManager.session.startRunning()
+                    }
+                }
+            }
         }
         .onDisappear {
             removeNotifications()
+            cameraManager.stop()
         }
     }
     
@@ -95,8 +85,7 @@ struct CameraView: View {
         ) { notification in
             if let url = notification.userInfo?["url"] as? URL {
                 recordedVideoURL = url
-                // Here you would typically present the video preview
-                // and pass the URL to VideoUploadViewModel
+                showVideoPreview = true
             }
         }
     }
