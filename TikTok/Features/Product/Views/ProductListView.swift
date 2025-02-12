@@ -4,6 +4,7 @@ struct ProductListView: View {
     let category: ProductCategory
     @StateObject private var viewModel = SavedProductsViewModel()
     @State private var selectedProducts: Set<String> = []
+    @State private var showingResearch = false
     
     private let columns = [
         GridItem(.flexible()),
@@ -56,11 +57,17 @@ struct ProductListView: View {
             if !selectedProducts.isEmpty {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Start") {
-                        // TODO: Add comparison action
+                        showingResearch = true
                     }
                     .foregroundColor(.blue)
                 }
             }
+        }
+        .sheet(isPresented: $showingResearch, onDismiss: {
+            // Clear selected products when the research view is dismissed
+            selectedProducts.removeAll()
+        }) {
+            ProductResearchView(products: viewModel.products.filter { selectedProducts.contains($0.id) })
         }
         .task {
             await viewModel.fetchProducts(categoryId: category.id)
