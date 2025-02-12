@@ -8,4 +8,15 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.7
       - key: PORT
-        value: 8000 
+        value: 8000
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: BASE_URL
+        value: https://stack-54k8.onrender.com
+    envVarsFromFiles:
+      - key: FIREBASE_CREDENTIALS
+        fromFile: service-account.json
+    healthCheckPath: /health
+    autoDeploy: true 

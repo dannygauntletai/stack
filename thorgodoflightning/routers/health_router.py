@@ -6,6 +6,7 @@ from services.firebase_service import FirebaseService
 from services.vector_service import VectorService
 import logging
 import os
+from config import Config
 
 router = APIRouter(
     prefix="/health",
@@ -32,6 +33,8 @@ async def health_check(db_service: DBServiceDep):
             'status': 'healthy',
             'service': 'video_health_analysis',
             'version': '1.0.0',
+            'environment': Config.ENVIRONMENT,
+            'base_url': Config.BASE_URL,
             'components': {}
         }
 
@@ -92,4 +95,9 @@ async def health_check(db_service: DBServiceDep):
             'status': 'unhealthy',
             'error': str(e),
             'service': 'video_health_analysis'
-        } 
+        }
+
+@router.get("/health")
+async def health_check():
+    # Use the base URL for any internal API calls if needed
+    return {"status": "healthy", "api_base_url": Config.BASE_URL} 
