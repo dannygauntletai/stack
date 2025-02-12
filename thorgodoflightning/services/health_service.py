@@ -3,7 +3,7 @@ from typing import Dict, Tuple
 import json
 import logging
 import traceback
-import os
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,14 @@ class HealthService:
         print("<THOR_DEBUG> Starting health impact analysis")
         
         try:
-            openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+            logger.info("Starting health impact analysis")
+            
+            # Use Config instead of os.getenv
+            api_key = Config.OPENAI_API_KEY
+            if not api_key:
+                raise ValueError("OpenAI API key not configured")
+            
+            openai_client = OpenAI(api_key=api_key)
             
             system_prompt = """You are primarily a nutrition and supplement expert, with additional expertise in longevity analysis for short-form videos (typically 15 seconds). 
             Your main task is to provide evidence-based supplement recommendations based on the video content and activities shown, while also analyzing its lifetime impact on life expectancy.

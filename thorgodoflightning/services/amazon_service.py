@@ -1,12 +1,8 @@
 from typing import Dict, List
 import requests
 import logging
-import os
-from dotenv import load_dotenv
 import traceback
-
-# Load environment variables from .env file
-load_dotenv()
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +22,9 @@ class Product:
 
 class AmazonService:
     def __init__(self):
-        self.api_key = os.getenv('RAINFOREST_API_KEY')
+        self.api_key = Config.RAINFOREST_API_KEY
+        if not self.api_key:
+            raise ValueError("RAINFOREST_API_KEY not found in configuration")
         self.endpoint = "https://api.rainforestapi.com/request"
 
     async def get_supplement_products(self, supplement: Dict) -> List[Dict]:
