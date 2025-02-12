@@ -1,5 +1,5 @@
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, storage
 import logging
 import os
 import json
@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 class FirebaseService:
     _instance = None
     _db = None
+    _app = None
+    _bucket = None
 
     @classmethod
     def initialize(cls):
@@ -20,24 +22,28 @@ class FirebaseService:
                 if Config.is_production():
                     os.environ.pop("FIRESTORE_EMULATOR_HOST", None)
                 
-                # Get Firebase credentials from environment variable
-                firebase_creds = os.getenv('FIREBASE_CREDENTIALS')
-                
-                if not firebase_creds:
-                    logger.error("FIREBASE_CREDENTIALS environment variable not found")
-                    raise ValueError("Missing FIREBASE_CREDENTIALS environment variable")
+                # Get credentials from Config instead of environment
+                cred_json = Config.FIREBASE_CREDENTIALS
+                if not cred_json:
+                    logger.error("Firebase credentials not found in configuration")
+                    raise ValueError("Firebase credentials not found in configuration")
                 
                 try:
                     # Parse the JSON string into a dictionary
-                    cred_dict = json.loads(firebase_creds)
+                    cred_dict = json.loads(cred_json)
                     cred = credentials.Certificate(cred_dict)
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse FIREBASE_CREDENTIALS JSON: {str(e)}")
                     raise ValueError("Invalid FIREBASE_CREDENTIALS JSON format")
 
                 # Initialize Firebase Admin SDK
-                cls._instance = firebase_admin.initialize_app(cred)
+                cls._instance = firebase_admin.initialize_app(cred, {
+                    'storageBucket': Config.FIREBASE_STORAGE_BUCKET
+                })
                 cls._db = firestore.client()
+                
+                # Initialize storage bucket
+                cls._bucket = storage.bucket()
                 
                 logger.info("Firebase initialized successfully")
             except Exception as e:
@@ -54,6 +60,13 @@ class FirebaseService:
     @classmethod
     def get_app(cls):
         """Get Firebase app instance, initializing if necessary"""
-        if not cls._instance:
+        if not cls._app:
             cls.initialize()
-        return cls._instance 
+        return cls._app
+
+    @classmethod
+    def get_bucket(cls):
+        """Get the Firebase storage bucket"""
+        if not cls._bucket:
+            cls.initialize()
+        return cls._bucket 
