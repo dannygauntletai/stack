@@ -1,30 +1,37 @@
 import SwiftUI
 import AVFoundation
 
-class CameraManager: ObservableObject {
+class CameraManager: NSObject, ObservableObject {
     @Published var permissionGranted = false
+    @Published var isRecording = false
     let session = AVCaptureSession()
     private let deviceInput: AVCaptureDeviceInput?
+    private var movieOutput: AVCaptureMovieFileOutput?
+    private var outputURL: URL?
     
-    init() {
-        // Get the back camera
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, 
-                                                 for: .video,
-                                                 position: .back) else {
-            deviceInput = nil
-            return
-        }
+    override init() {
+        // Initialize properties before super.init()
+        deviceInput = {
+            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, 
+                                                     for: .video,
+                                                     position: .back) else {
+                return nil
+            }
+            
+            do {
+                return try AVCaptureDeviceInput(device: device)
+            } catch {
+                print("Error setting up camera: \(error.localizedDescription)")
+                return nil
+            }
+        }()
         
-        // Create device input
-        do {
-            deviceInput = try AVCaptureDeviceInput(device: device)
-        } catch {
-            print("Error setting up camera: \(error.localizedDescription)")
-            deviceInput = nil
-            return
-        }
+        movieOutput = AVCaptureMovieFileOutput()
         
-        // Check and request permission
+        // Call super.init()
+        super.init()
+        
+        // Setup after initialization
         checkPermission()
     }
     
@@ -48,12 +55,17 @@ class CameraManager: ObservableObject {
     }
     
     private func setupSession() {
-        guard let deviceInput = deviceInput else { return }
+        guard let deviceInput = deviceInput,
+              let movieOutput = movieOutput else { return }
         
         session.beginConfiguration()
         
         if session.canAddInput(deviceInput) {
             session.addInput(deviceInput)
+        }
+        
+        if session.canAddOutput(movieOutput) {
+            session.addOutput(movieOutput)
         }
         
         session.commitConfiguration()
@@ -63,9 +75,54 @@ class CameraManager: ObservableObject {
         }
     }
     
+    func startRecording() {
+        guard let movieOutput = movieOutput else { return }
+        
+        let documentsPath = FileManager.default.temporaryDirectory
+        let outputPath = documentsPath.appendingPathComponent("\(UUID().uuidString).mov")
+        outputURL = outputPath
+        
+        movieOutput.startRecording(to: outputPath, recordingDelegate: self)
+        isRecording = true
+    }
+    
+    func stopRecording() {
+        movieOutput?.stopRecording()
+        isRecording = false
+    }
+    
     func stop() {
         session.stopRunning()
     }
+}
+
+// Add delegate methods
+extension CameraManager: AVCaptureFileOutputRecordingDelegate {
+    func fileOutput(_ output: AVCaptureFileOutput, 
+                   didFinishRecordingTo outputFileURL: URL, 
+                   from connections: [AVCaptureConnection], 
+                   error: Error?) {
+        if let error = error {
+            print("Error recording video: \(error.localizedDescription)")
+            return
+        }
+        
+        // Handle the recorded video URL
+        DispatchQueue.main.async { [weak self] in
+            self?.isRecording = false
+            // Here you would typically pass this URL to your VideoUploadViewModel
+            NotificationCenter.default.post(
+                name: .didFinishRecording,
+                object: nil,
+                userInfo: ["url": outputFileURL]
+            )
+        }
+    }
+}
+
+// Add notification name
+extension Notification.Name {
+    static let didFinishRecording = Notification.Name("didFinishRecording")
 }
 
 struct CameraPreviewView: UIViewRepresentable {
@@ -87,80 +144,4 @@ struct CameraPreviewView: UIViewRepresentable {
             layer.frame = uiView.bounds
         }
     }
-}
-
-struct CameraView: View {
-    @StateObject private var cameraManager = CameraManager()
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        ZStack {
-            if cameraManager.permissionGranted {
-                CameraPreviewView(session: cameraManager.session)
-                    .ignoresSafeArea()
-                
-                // Camera controls overlay
-                VStack {
-                    HStack {
-                        Button("Cancel") {
-                            cameraManager.stop()
-                            dismiss()
-                        }
-                        .foregroundColor(.white)
-                        .padding()
-                        
-                        Spacer()
-                    }
-                    
-                    Spacer()
-                    
-                    // Record button
-                    Circle()
-                        .stroke(Color.white, lineWidth: 3)
-                        .frame(width: 72, height: 72)
-                        .overlay(
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 64, height: 64)
-                        )
-                        .padding(.bottom, 30)
-                }
-            } else {
-                VStack(spacing: 20) {
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.white.opacity(0.6))
-                    
-                    Text("Camera access is required")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                    
-                    Text("Please enable camera access in Settings to record videos")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                    
-                    Button(action: {
-                        UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!)
-                    }) {
-                        Text("Open Settings")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.black)
-                            .frame(width: 160)
-                            .padding(.vertical, 12)
-                            .background(Color.white)
-                            .cornerRadius(4)
-                    }
-                    .padding(.top, 10)
-                }
-            }
-        }
-        .background(Color.black)
-    }
-}
-
-#Preview {
-    CameraView()
 } 

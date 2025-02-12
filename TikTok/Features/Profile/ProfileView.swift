@@ -10,6 +10,7 @@ struct ProfileView: View {
     @State private var showingMenu = false
     @State private var profileImageURL: URL?
     @State private var isLoadingProfileImage = false
+    @State private var showingEditProfile = false
     
     // Add these new properties
     private let imageCache = ImageCache.shared
@@ -63,7 +64,9 @@ struct ProfileView: View {
                     }
                     
                     // Edit Profile Button
-                    Button(action: {}) {
+                    Button(action: {
+                        showingEditProfile = true
+                    }) {
                         Text("Edit profile")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
@@ -71,6 +74,9 @@ struct ProfileView: View {
                             .padding(.vertical, 8)
                             .background(Color.gray.opacity(0.3))
                             .cornerRadius(2)
+                    }
+                    .sheet(isPresented: $showingEditProfile) {
+                        EditProfileView(currentUsername: viewModel.user?.username ?? "")
                     }
                 }
                 .padding(.vertical)
@@ -117,16 +123,7 @@ struct ProfileView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
-                        // Other menu items first
-                        Button(action: {}) {
-                            Label("Settings", systemImage: "gearshape")
-                        }
-                        
-                        Button(action: {}) {
-                            Label("Privacy", systemImage: "lock")
-                        }
-                        
-                        // Logout at the bottom
+                        // Only keep the logout button
                         Button(role: .destructive, action: {
                             authViewModel.signOut()
                         }) {
@@ -142,9 +139,8 @@ struct ProfileView: View {
         }
         .environmentObject(feedViewModel)
         .task {
-            // Load cached data first
+            setupNotifications()
             loadCachedData()
-            // Then fetch fresh data
             await viewModel.fetchUserContent()
             await loadProfileImage()
         }
@@ -224,6 +220,18 @@ struct ProfileView: View {
                     .font(.system(size: 40))
                     .foregroundColor(.white)
             )
+    }
+    
+    private func setupNotifications() {
+        NotificationCenter.default.addObserver(
+            forName: .profileDidUpdate,
+            object: nil,
+            queue: .main
+        ) { _ in
+            Task {
+                await viewModel.fetchUserContent()
+            }
+        }
     }
 }
 
