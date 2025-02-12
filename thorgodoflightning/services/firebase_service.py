@@ -16,6 +16,10 @@ class FirebaseService:
         """Initialize Firebase if not already initialized"""
         if not cls._instance:
             try:
+                # In production, ensure we are NOT using the Firestore emulator.
+                if Config.is_production():
+                    os.environ.pop("FIRESTORE_EMULATOR_HOST", None)
+                
                 # Get Firebase credentials from environment variable
                 firebase_creds = os.getenv('FIREBASE_CREDENTIALS')
                 

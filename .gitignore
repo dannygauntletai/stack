@@ -12,7 +12,8 @@ TikTok/GoogleService-Info.plist
 !.env.example
 # Google Cloud credentials
 *.json
-
+venv/
+thorgodoflightning/venv
 # Python
 __pycache__/
 *.py[cod]
