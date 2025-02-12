@@ -128,6 +128,7 @@ struct ProductRecommendationsSheet: View {
 
 struct ProductRow: View {
     let product: Product
+    @State private var showCategorySelection = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -162,19 +163,39 @@ struct ProductRow: View {
                 }
             }
             
-            Link(destination: URL(string: product.productUrl)!) {
-                Text("View on Amazon")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.blue)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(8)
+            HStack(spacing: 0) {
+                // Amazon Link Button (75% width)
+                Link(destination: URL(string: product.productUrl)!) {
+                    Text("View on Amazon")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.blue.opacity(0.1))
+                }
+                .frame(width: UIScreen.main.bounds.width * 0.75)
+                
+                // Save Button (25% width)
+                Button {
+                    showCategorySelection = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.green)
+                }
+                .frame(width: UIScreen.main.bounds.width * 0.25)
             }
+            .cornerRadius(8)
         }
         .padding()
         .background(Color.gray.opacity(0.1))
         .cornerRadius(12)
+        .sheet(isPresented: $showCategorySelection) {
+            ProductCategorySelectionModal(product: product)
+        }
     }
 }
 
@@ -217,6 +238,14 @@ struct Price: Codable {
         case amount
         case currency
         case displayAmount = "display_amount"
+    }
+    
+    func toDictionary() -> [String: Any] {
+        return [
+            "amount": amount,
+            "currency": currency,
+            "displayAmount": displayAmount
+        ]
     }
 }
 
