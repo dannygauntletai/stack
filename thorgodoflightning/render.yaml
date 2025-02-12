@@ -14,10 +14,8 @@ services:
       - key: DEBUG
         value: false
       - key: BASE_URL
-        value: https://stack-54k8.onrender.com
+        value: https://stack-pjz5.onrender.com
     envVarsFromFiles:
-      # - key: FIREBASE_CREDENTIALS
-      #   fromFile: service-account.json
       - key: FIREBASE_CREDENTIALS
         fromFile: .env
     healthCheckPath: /health

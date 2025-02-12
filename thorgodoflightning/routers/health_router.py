@@ -65,8 +65,7 @@ async def health_check(db_service: DBServiceDep):
         # Check environment variables
         required_categories = {
             'OpenAI': ['OPENAI_API_KEY'],
-            'Google Cloud': ['PROJECT_ID', 'GOOGLE_APPLICATION_CREDENTIALS'],
-            'Firebase': ['FIREBASE_STORAGE_BUCKET'],
+            'Firebase': ['FIREBASE_CREDENTIALS'],
             'Pinecone': ['PINECONE_API_KEY', 'PINECONE_INDEX_NAME']
         }
         

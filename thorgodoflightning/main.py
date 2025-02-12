@@ -25,7 +25,7 @@ app = FastAPI(
 
 # CORS configuration
 origins = ["*"] if Config.is_development() else [
-    "https://stack-54k8.onrender.com",
+    "https://stack-pjz5.onrender.com",
     "https://tiktok-18d7a.web.app",  # Add your frontend domain
     "https://tiktok-18d7a.firebaseapp.com"  # Add your firebase hosting domain
 ]
