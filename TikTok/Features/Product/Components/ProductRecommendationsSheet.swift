@@ -235,49 +235,6 @@ struct ProductResponse: Codable {
     let supplement: SupplementRecommendation
 }
 
-// Product model
-struct Product: Codable {
-    let asin: String
-    let title: String
-    let imageUrl: String
-    let price: Price
-    let rating: Double?
-    let reviewCount: Int?
-    let productUrl: String
-    let isPrime: Bool
-    
-    enum CodingKeys: String, CodingKey {
-        case asin
-        case title
-        case imageUrl = "image_url"
-        case price
-        case rating
-        case reviewCount = "review_count"
-        case productUrl = "product_url"
-        case isPrime = "is_prime"
-    }
-}
-
-struct Price: Codable {
-    let amount: Double
-    let currency: String
-    let displayAmount: String
-    
-    enum CodingKeys: String, CodingKey {
-        case amount
-        case currency
-        case displayAmount = "display_amount"
-    }
-    
-    func toDictionary() -> [String: Any] {
-        return [
-            "amount": amount,
-            "currency": currency,
-            "displayAmount": displayAmount
-        ]
-    }
-}
-
 struct SupplementRecommendation: Codable {
     let name: String
     let dosage: String

@@ -2,8 +2,7 @@ import SwiftUI
 
 struct ProductCategoriesView: View {
     @StateObject private var viewModel = ProductCategoryViewModel()
-    @State private var showingCreateCategory = false
-    
+
     var body: some View {
         List {
             ForEach(viewModel.categories) { category in
@@ -16,27 +15,23 @@ struct ProductCategoriesView: View {
                         VStack(alignment: .leading) {
                             Text(category.name)
                                 .font(.headline)
-                            Text("\(viewModel.productCounts[category.id ?? ""] ?? 0) products")
+                            Text("\(viewModel.productCounts[category.id] ?? 0) products")
                                 .font(.subheadline)
                                 .foregroundStyle(.gray)
                         }
                         .padding(.leading, 8)
                     }
+                    .padding()
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
                 }
             }
         }
-        .navigationTitle("Products")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showingCreateCategory = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-            }
-        }
-        .sheet(isPresented: $showingCreateCategory) {
-            CreateCategorySheet(viewModel: viewModel)
+        .listStyle(PlainListStyle())
+        .padding(.top, 0)
+        .task {
+            // Fetch product counts when view appears
+            await viewModel.fetchProductCounts()
         }
     }
 }

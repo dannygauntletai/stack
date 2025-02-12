@@ -12,10 +12,11 @@ struct MainTabView: View {
                     Text("Home")
                 }
                 .tag(0)
-            StackView()
+            
+            ProductView()
                 .tabItem {
                     Image(systemName: selectedTab == 1 ? "square.stack.3d.up.fill" : "square.stack.3d.up")
-                    Text("Stacks")
+                    Text("Products")
                 }
                 .tag(1)
             
