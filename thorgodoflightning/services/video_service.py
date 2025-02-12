@@ -5,6 +5,7 @@ import traceback
 import logging
 from google.oauth2 import service_account
 import os
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -15,17 +16,9 @@ class VideoService:
         print(f"<THOR_DEBUG> Processing video URL: {video_url}")
         
         try:
-            # Get Firebase credentials from environment
-            firebase_creds = os.getenv('FIREBASE_CREDENTIALS')
-            if not firebase_creds:
-                raise ValueError("FIREBASE_CREDENTIALS not found in environment")
-            
-            # Parse credentials JSON
-            cred_dict = json.loads(firebase_creds)
-            
-            # Create credentials object for Video Intelligence
+            # Get credentials from Config
             credentials = service_account.Credentials.from_service_account_info(
-                cred_dict,
+                json.loads(Config.FIREBASE_CREDENTIALS),
                 scopes=['https://www.googleapis.com/auth/cloud-platform']
             )
             

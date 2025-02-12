@@ -5,21 +5,25 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Force reload environment variables from .env file
+# Always try to load .env first, then check environment
 if os.path.exists('.env'):
-    load_dotenv(override=True)  # override=True forces reload of environment variables
-    logger.info(f"Loaded environment variables from .env file")
+    load_dotenv(override=True)
+    logger.info("Loaded environment variables from .env file")
 else:
     logger.warning("No .env file found!")
+
+# After loading .env, get the environment
+ENVIRONMENT = os.getenv('ENVIRONMENT', 'development')
+logger.info(f"Running in {ENVIRONMENT} environment")
 
 @dataclass
 class Config:
     # Environment
-    ENVIRONMENT: str = os.getenv('ENVIRONMENT', 'development')
+    ENVIRONMENT: str = ENVIRONMENT
     DEBUG: bool = os.getenv('DEBUG', 'true').lower() == 'true'
     
     # Base URL for API
-    BASE_URL: str = "https://stack-pjz5.onrender.com" if ENVIRONMENT == 'production' else "http://localhost:8000"
+    BASE_URL: str = os.getenv('BASE_URL', 'http://localhost:8000')
     
     # OpenAI
     OPENAI_API_KEY: str = os.getenv('OPENAI_API_KEY')
@@ -29,6 +33,7 @@ class Config:
     PROJECT_NAME: str = os.getenv('PROJECT_NAME')
     
     # Firebase
+    FIREBASE_CREDENTIALS: str = os.getenv('FIREBASE_CREDENTIALS')
     FIREBASE_STORAGE_BUCKET: str = os.getenv('STORAGE_BUCKET_NAME')
     SERVICE_ACCOUNT_EMAIL: str = os.getenv('SERVICE_ACCOUNT_EMAIL')
     
@@ -75,6 +80,7 @@ class Config:
             'OpenAI': ['OPENAI_API_KEY'],
             'Google Cloud': ['PROJECT_ID', 'PROJECT_NAME'],
             'Firebase': [
+                'FIREBASE_CREDENTIALS',
                 'FIREBASE_STORAGE_BUCKET',
                 'SERVICE_ACCOUNT_EMAIL'
             ],
@@ -83,6 +89,9 @@ class Config:
                 'PINECONE_INDEX_NAME',
                 'PINECONE_PROJECT_ID',
                 'PINECONE_ENVIRONMENT'
+            ],
+            'API Keys': [
+                'RAINFOREST_API_KEY'
             ]
         }
         
@@ -96,4 +105,8 @@ class Config:
             error_msg = "Missing required environment variables:\n"
             for category, vars in missing.items():
                 error_msg += f"\n{category}:\n" + "\n".join(f"- {var}" for var in vars)
-            raise ValueError(error_msg) 
+            if cls.is_production():
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            else:
+                logger.warning(error_msg) 

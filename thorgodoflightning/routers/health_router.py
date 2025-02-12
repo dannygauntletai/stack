@@ -62,25 +62,21 @@ async def health_check(db_service: DBServiceDep):
             health_status['components']['vector_service'] = f'error: {str(e)}'
             health_status['status'] = 'degraded'
 
-        # Check environment variables
-        required_categories = {
-            'OpenAI': ['OPENAI_API_KEY'],
-            'Firebase': ['FIREBASE_CREDENTIALS'],
-            'Pinecone': ['PINECONE_API_KEY', 'PINECONE_INDEX_NAME']
-        }
-        
-        missing = {}
-        for category, vars in required_categories.items():
-            missing_vars = [var for var in vars if not os.getenv(var)]
-            if missing_vars:
-                missing[category] = missing_vars
-                health_status['status'] = 'degraded'
-        
-        if missing:
+        # Check required configurations
+        config_status = {}
+        if not Config.OPENAI_API_KEY:
+            config_status['openai'] = 'missing API key'
+        if not Config.FIREBASE_CREDENTIALS:
+            config_status['firebase'] = 'missing credentials'
+        if not Config.PINECONE_API_KEY or not Config.PINECONE_INDEX_NAME:
+            config_status['pinecone'] = 'missing configuration'
+
+        if config_status:
             health_status['components']['configuration'] = {
                 'status': 'incomplete',
-                'missing': missing
+                'missing': config_status
             }
+            health_status['status'] = 'degraded'
         else:
             health_status['components']['configuration'] = {
                 'status': 'complete'
