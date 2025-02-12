@@ -98,29 +98,15 @@ struct HomeVideoOverlay: View {
                     }
                 }
                 
-                // Stack Button
-                Button {
-                    showStackSelection = true
-                } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: "plus.square.fill.on.square.fill")
-                            .font(.system(size: 30))
-                            .foregroundStyle(.white)
-                        Text("Stack")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-                }
-                
-                // Replace Share Button with Products Button
+                // Products Button (moved to Stack button's position)
                 Button {
                     showProductRecommendations = true
                 } label: {
                     VStack(spacing: 3) {
-                        Image(systemName: "cart.fill")  // Changed icon to cart
+                        Image(systemName: "cart.fill")
                             .font(.system(size: 30))
                             .foregroundStyle(.white)
-                        Text("Products")  // Changed text
+                        Text("Products")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.white)
                     }
