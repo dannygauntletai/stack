@@ -2,11 +2,15 @@ import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables only in development
+if os.getenv('ENVIRONMENT') != 'production':
+    load_dotenv()
 
 @dataclass
 class Config:
+    # Environment
+    ENVIRONMENT: str = os.getenv('ENVIRONMENT', 'development')
+    
     # OpenAI
     OPENAI_API_KEY: str = os.getenv('OPENAI_API_KEY')
     
@@ -35,9 +39,13 @@ class Config:
     # Server
     PORT: int = int(os.getenv('PORT', '8000'))
     
-    # Emulator Settings
-    USE_FIRESTORE_EMULATOR: bool = os.getenv('FUNCTIONS_EMULATOR', '').lower() == 'true'
-    FIRESTORE_EMULATOR_HOST: str = os.getenv('FIRESTORE_EMULATOR_HOST', 'localhost:8081')
+    # Emulator Settings - only used in development
+    USE_FIRESTORE_EMULATOR: bool = os.getenv('ENVIRONMENT') != 'production' and os.getenv('FUNCTIONS_EMULATOR', '').lower() == 'true'
+    FIRESTORE_EMULATOR_HOST: str = os.getenv('FIRESTORE_EMULATOR_HOST', 'localhost:8081') if USE_FIRESTORE_EMULATOR else None
+
+    @classmethod
+    def is_development(cls) -> bool:
+        return cls.ENVIRONMENT != 'production'
 
     @classmethod
     def validate(cls):
