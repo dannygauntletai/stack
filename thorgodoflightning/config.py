@@ -5,10 +5,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Load environment variables only in development
-if os.getenv('ENVIRONMENT') != 'production':
-    load_dotenv()
-    logger.info(f"Loaded environment variables for {os.getenv('ENVIRONMENT', 'development')} environment")
+# Force reload environment variables from .env file
+if os.path.exists('.env'):
+    load_dotenv(override=True)  # override=True forces reload of environment variables
+    logger.info(f"Loaded environment variables from .env file")
+else:
+    logger.warning("No .env file found!")
 
 @dataclass
 class Config:
@@ -94,13 +96,4 @@ class Config:
             error_msg = "Missing required environment variables:\n"
             for category, vars in missing.items():
                 error_msg += f"\n{category}:\n" + "\n".join(f"- {var}" for var in vars)
-            if cls.is_production():
-                logger.error(error_msg)  # Log the error but don't raise if Firebase is initialized
-                if 'Firebase' in missing and len(missing) == 1:
-                    # If only Firebase credentials are missing but Firebase is initialized, continue
-                    if FirebaseService.get_app():
-                        logger.info("Firebase is already initialized, continuing despite missing credentials in config")
-                        return
-                raise ValueError(error_msg)
-            else:
-                logger.warning(error_msg) 
+            raise ValueError(error_msg) 
