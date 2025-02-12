@@ -112,7 +112,7 @@ extension CameraManager: AVCaptureFileOutputRecordingDelegate {
             }
         }
     }
-      m,
+    
     func fileOutput(_ output: AVCaptureFileOutput,
                    didStartRecordingTo fileURL: URL,
                    from connections: [AVCaptureConnection]) {

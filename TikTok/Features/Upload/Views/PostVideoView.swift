@@ -92,6 +92,7 @@ struct PostVideoView: View {
     var body: some View {
         NavigationView {
             ZStack {
+                // Background and Video Layer
                 VStack(spacing: 0) {
                     // Progress bar at top
                     if case .uploading(let progress) = uploadStatus {
@@ -115,6 +116,7 @@ struct PostVideoView: View {
                         
                         Text("New Post")
                             .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .center)
                         
                         Spacer()
                     }
@@ -123,73 +125,65 @@ struct PostVideoView: View {
                     Divider()
                         .background(Color.gray.opacity(0.3))
                     
-                    ScrollView {
-                        VStack(spacing: 24) {
-                            // Video Preview
-                            if let player = player {
-                                VideoPlayer(player: player)
-                                    .aspectRatio(9/16, contentMode: .fit)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(maxHeight: .infinity)
-                                    .cornerRadius(12)
-                                    .onAppear {
+                    // Video Preview
+                    ZStack {
+                        if let player = player {
+                            VideoPlayer(player: player)
+                                .aspectRatio(9/16, contentMode: .fit)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .onAppear {
+                                    player.play()
+                                    NotificationCenter.default.addObserver(
+                                        forName: .AVPlayerItemDidPlayToEndTime,
+                                        object: player.currentItem,
+                                        queue: .main
+                                    ) { _ in
+                                        player.seek(to: .zero)
                                         player.play()
-                                        NotificationCenter.default.addObserver(
-                                            forName: .AVPlayerItemDidPlayToEndTime,
-                                            object: player.currentItem,
-                                            queue: .main
-                                        ) { _ in
-                                            player.seek(to: .zero)
-                                            player.play()
-                                        }
                                     }
-                            } else if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    .frame(maxHeight: .infinity)
-                            }
+                                }
+                        } else if isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         }
-                    }
-                    .frame(maxHeight: .infinity)
-                    
-                    // Stack these sections together at the bottom
-                    VStack(spacing: 16) {
-                        // Caption section
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Caption")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                            
-                            TextField("Write a caption...", text: $caption)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(12)
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal)
                         
-                        // Post button
-                        Button(action: uploadVideo) {
-                            if case .uploading = uploadStatus {
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                                    .tint(.black)
-                            } else {
-                                Text("Post")
-                                    .fontWeight(.semibold)
+                        // Overlay for caption and post button
+                        VStack {
+                            Spacer()
+                            
+                            // Semi-transparent overlay background
+                            VStack(spacing: 16) {
+                                // Caption input section
+                                TextField("Write a caption...", text: $caption)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(12)
+                                    .foregroundColor(.white)
+                                
+                                // Post button
+                                Button(action: uploadVideo) {
+                                    if case .uploading = uploadStatus {
+                                        ProgressView()
+                                            .progressViewStyle(.circular)
+                                            .tint(.black)
+                                    } else {
+                                        Text("Post")
+                                            .fontWeight(.semibold)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(uploadStatus == .ready ? Color.white : Color.white.opacity(0.5))
+                                .foregroundColor(.black)
+                                .cornerRadius(25)
+                                .disabled(uploadStatus != .ready)
+                                .padding(.horizontal)
+                                .padding(.bottom, 30)
                             }
+                            .background(Color.black.opacity(0.5))
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(uploadStatus == .ready ? Color.white : Color.white.opacity(0.5))
-                        .foregroundColor(.black)
-                        .cornerRadius(25)
-                        .disabled(uploadStatus != .ready)
-                        .padding(.horizontal)
-                        .padding(.bottom, 30)
                     }
-                    .background(Color.black)
                 }
                 
                 // Upload status popup
