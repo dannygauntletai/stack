@@ -387,6 +387,28 @@ class ShortFormFeedViewModel: ObservableObject {
                         options: .regularExpression
                     )
                     
+                    // Extract supplement recommendations
+                    var supplementRecommendations: [SupplementRecommendation] = []
+                    if let healthAnalysis = data["healthAnalysis"] as? [String: Any],
+                       let recommendations = healthAnalysis["supplement_recommendations"] as? [[String: Any]] {
+                        supplementRecommendations = recommendations.compactMap { recommendation in
+                            guard let name = recommendation["name"] as? String,
+                                  let dosage = recommendation["dosage"] as? String,
+                                  let timing = recommendation["timing"] as? String,
+                                  let reason = recommendation["reason"] as? String,
+                                  let caution = recommendation["caution"] as? String else {
+                                return nil
+                            }
+                            return SupplementRecommendation(
+                                name: name,
+                                dosage: dosage,
+                                timing: timing,
+                                reason: reason,
+                                caution: caution
+                            )
+                        }
+                    }
+                    
                     return Video(
                         id: id,
                         videoUrl: cleanedUrl,
@@ -398,7 +420,8 @@ class ShortFormFeedViewModel: ObservableObject {
                         comments: comments,
                         shares: shares,
                         thumbnailUrl: thumbnailUrl,
-                        tags: tags
+                        tags: tags,
+                        supplementRecommendations: supplementRecommendations
                     )
                 }
             }

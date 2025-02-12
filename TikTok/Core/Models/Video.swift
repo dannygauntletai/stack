@@ -12,6 +12,7 @@ struct Video: Identifiable {
     var shares: Int
     let thumbnailUrl: String?
     let tags: [String]
+    let supplementRecommendations: [SupplementRecommendation]
     
     var dictionary: [String: Any] {
         var dict: [String: Any] = [
@@ -25,7 +26,8 @@ struct Video: Identifiable {
             "shares": shares,
             "username": author.username,
             "profileImageUrl": author.profileImageUrl as Any,
-            "tags": tags
+            "tags": tags,
+            "supplementRecommendations": supplementRecommendations.map { $0.dictionary }
         ]
         
         if let thumbnailUrl = thumbnailUrl {
@@ -46,7 +48,8 @@ struct Video: Identifiable {
         comments: Int,
         shares: Int,
         thumbnailUrl: String?,
-        tags: [String] = []
+        tags: [String] = [],
+        supplementRecommendations: [SupplementRecommendation] = []
     ) {
         self.id = id
         self.videoUrl = videoUrl
@@ -59,5 +62,6 @@ struct Video: Identifiable {
         self.shares = shares
         self.thumbnailUrl = thumbnailUrl
         self.tags = tags
+        self.supplementRecommendations = supplementRecommendations
     }
 } 
