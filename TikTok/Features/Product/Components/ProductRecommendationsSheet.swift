@@ -114,6 +114,9 @@ struct ProductRecommendationsSheet: View {
         // Call API if not in cache
         Task {
             do {
+                // Define the URL using AppEnvironment
+                let url = URL(string: "\(AppEnvironment.baseURL)/products/supplements")!
+                
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
