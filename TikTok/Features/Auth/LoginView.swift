@@ -98,7 +98,7 @@ struct LoginView: View {
                             .font(.subheadline)
                             .foregroundColor(.white.opacity(0.7))
                         
-                        HStack(spacing: 32) {
+                        HStack {
                             // Google Button
                             Button(action: {}) {
                                 Circle()
@@ -107,20 +107,6 @@ struct LoginView: View {
                                     .frame(width: 44, height: 44)
                                     .overlay(
                                         Image(systemName: "g.circle.fill")
-                                            .resizable()
-                                            .frame(width: 44, height: 44)
-                                            .foregroundColor(.black)
-                                    )
-                            }
-                            
-                            // X Button
-                            Button(action: {}) {
-                                Circle()
-                                    .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
-                                    .background(Circle().fill(Color.white))
-                                    .frame(width: 44, height: 44)
-                                    .overlay(
-                                        Image(systemName: "x.circle.fill")
                                             .resizable()
                                             .frame(width: 44, height: 44)
                                             .foregroundColor(.black)

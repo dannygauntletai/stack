@@ -1,5 +1,7 @@
 import SwiftUI
 import FirebaseStorage
+import FirebaseAuth
+import FirebaseFirestore
 import Foundation
 
 struct ProfileView: View {
@@ -10,6 +12,8 @@ struct ProfileView: View {
     @State private var showingMenu = false
     @State private var profileImageURL: URL?
     @State private var isLoadingProfileImage = false
+    @State private var showingEditProfile = false
+    @State private var newUsername = ""
     
     // Add these new properties
     private let imageCache = ImageCache.shared
@@ -63,7 +67,10 @@ struct ProfileView: View {
                     }
                     
                     // Edit Profile Button
-                    Button(action: {}) {
+                    Button(action: {
+                        newUsername = viewModel.user?.username ?? ""
+                        showingEditProfile = true
+                    }) {
                         Text("Edit profile")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
@@ -71,6 +78,13 @@ struct ProfileView: View {
                             .padding(.vertical, 8)
                             .background(Color.gray.opacity(0.3))
                             .cornerRadius(2)
+                    }
+                    .sheet(isPresented: $showingEditProfile) {
+                        EditProfileView(username: $newUsername, isPresented: $showingEditProfile) { newUsername in
+                            Task {
+                                await viewModel.updateUsername(newUsername)
+                            }
+                        }
                     }
                 }
                 .padding(.vertical)
@@ -117,16 +131,6 @@ struct ProfileView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
-                        // Other menu items first
-                        Button(action: {}) {
-                            Label("Settings", systemImage: "gearshape")
-                        }
-                        
-                        Button(action: {}) {
-                            Label("Privacy", systemImage: "lock")
-                        }
-                        
-                        // Logout at the bottom
                         Button(role: .destructive, action: {
                             authViewModel.signOut()
                         }) {
@@ -548,6 +552,61 @@ final class ImageCache {
     private func getFilename(from urlString: String) -> String {
         let hash = urlString.hash
         return "profile_image_\(abs(hash)).jpg"
+    }
+}
+
+struct EditProfileView: View {
+    @Binding var username: String
+    @Binding var isPresented: Bool
+    let onSave: (String) -> Void
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Profile Information")) {
+                    TextField("Username", text: $username)
+                }
+            }
+            .navigationTitle("Edit Profile")
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    isPresented = false
+                },
+                trailing: Button("Save") {
+                    onSave(username)
+                    isPresented = false
+                }
+            )
+        }
+    }
+}
+
+extension ProfileViewModel {
+    func updateUsername(_ newUsername: String) async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        do {
+            // 1. Update username in users collection
+            try await Firestore.firestore().collection("users").document(userId).updateData([
+                "username": newUsername
+            ])
+            
+            // 2. Update username in all videos by this user
+            let videosRef = Firestore.firestore().collection("videos")
+            let userVideos = try await videosRef.whereField("userId", isEqualTo: userId).getDocuments()
+            
+            for video in userVideos.documents {
+                try await video.reference.updateData([
+                    "username": newUsername
+                ])
+            }
+            
+            // 3. Fetch updated user data instead of trying to modify the local user object
+            await fetchUserContent()
+            
+        } catch {
+            print("Error updating username: \(error)")
+        }
     }
 }
 
