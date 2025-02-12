@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-from config import Config
-from routers import health_router, video_router
+from routers import health_router, video_router, product_router
 from services.firebase_service import FirebaseService
 
 # Configure logging
@@ -26,6 +25,7 @@ app.add_middleware(
 # Include routers
 app.include_router(health_router.router)
 app.include_router(video_router.router)
+app.include_router(product_router.router)
 
 # Root endpoint
 @app.get("/")
