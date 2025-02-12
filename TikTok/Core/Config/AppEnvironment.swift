@@ -22,7 +22,7 @@ enum AppEnvironment {
     }
     
     static var baseURL: String {
-        let url = isProduction ? "https://stack-54k8.onrender.com" : "http://localhost:8000"
+        let url = isProduction ? "https://stack-pjz5.onrender.com" : "http://localhost:8000"
         print("Using baseURL: \(url)")
         return url
     }

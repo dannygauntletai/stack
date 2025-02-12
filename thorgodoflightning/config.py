@@ -17,7 +17,7 @@ class Config:
     DEBUG: bool = os.getenv('DEBUG', 'true').lower() == 'true'
     
     # Base URL for API
-    BASE_URL: str = "https://stack-54k8.onrender.com" if ENVIRONMENT == 'production' else "http://localhost:8000"
+    BASE_URL: str = "https://stack-pjz5.onrender.com" if ENVIRONMENT == 'production' else "http://localhost:8000"
     
     # OpenAI
     OPENAI_API_KEY: str = os.getenv('OPENAI_API_KEY')
@@ -51,10 +51,6 @@ class Config:
     
     # Server
     PORT: int = int(os.getenv('PORT', '8000'))
-    
-    # Emulator Settings - only used in development
-    USE_FIRESTORE_EMULATOR: bool = ENVIRONMENT != 'production' and os.getenv('FUNCTIONS_EMULATOR', '').lower() == 'true'
-    FIRESTORE_EMULATOR_HOST: str = os.getenv('FIRESTORE_EMULATOR_HOST', 'localhost:8081') if USE_FIRESTORE_EMULATOR else None
 
     @classmethod
     def is_development(cls) -> bool:
