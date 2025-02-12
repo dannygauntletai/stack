@@ -12,7 +12,7 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: DEBUG
-        value: false
+        value: true  # Temporarily set to true for debugging
       - key: BASE_URL
         value: https://stack-pjz5.onrender.com
     envVarsFromFiles:
