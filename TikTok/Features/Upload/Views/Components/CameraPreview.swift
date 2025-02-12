@@ -1,17 +1,23 @@
 import SwiftUI
 import AVFoundation
 
-class CameraManager: ObservableObject {
+class CameraManager: NSObject, ObservableObject {
     @Published var permissionGranted = false
+    @Published var isRecording = false
+    @Published var recordedVideoURL: URL?
+    
     let session = AVCaptureSession()
     private let deviceInput: AVCaptureDeviceInput?
+    private var movieOutput: AVCaptureMovieFileOutput?
+    var onVideoRecorded: ((URL) -> Void)?  // Callback for when video is recorded
     
-    init() {
+    override init() {
         // Get the back camera
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, 
                                                  for: .video,
                                                  position: .back) else {
             deviceInput = nil
+            super.init()
             return
         }
         
@@ -21,10 +27,14 @@ class CameraManager: ObservableObject {
         } catch {
             print("Error setting up camera: \(error.localizedDescription)")
             deviceInput = nil
+            super.init()
             return
         }
         
+        movieOutput = AVCaptureMovieFileOutput()
+        
         // Check and request permission
+        super.init()
         checkPermission()
     }
     
@@ -56,6 +66,11 @@ class CameraManager: ObservableObject {
             session.addInput(deviceInput)
         }
         
+        // Add movie output
+        if let movieOutput = movieOutput, session.canAddOutput(movieOutput) {
+            session.addOutput(movieOutput)
+        }
+        
         session.commitConfiguration()
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -65,6 +80,43 @@ class CameraManager: ObservableObject {
     
     func stop() {
         session.stopRunning()
+    }
+    
+    func startRecording() {
+        guard let movieOutput = movieOutput, !movieOutput.isRecording else { return }
+        
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("mp4")
+            
+        movieOutput.startRecording(to: tempURL, recordingDelegate: self)
+        isRecording = true
+    }
+    
+    func stopRecording() {
+        guard let movieOutput = movieOutput, movieOutput.isRecording else { return }
+        movieOutput.stopRecording()
+    }
+}
+
+extension CameraManager: AVCaptureFileOutputRecordingDelegate {
+    func fileOutput(_ output: AVCaptureFileOutput,
+                   didFinishRecordingTo outputFileURL: URL,
+                   from connections: [AVCaptureConnection],
+                   error: Error?) {
+        DispatchQueue.main.async { [weak self] in
+            self?.isRecording = false
+            if error == nil {
+                self?.recordedVideoURL = outputFileURL
+                self?.onVideoRecorded?(outputFileURL)  // Call the callback with the URL
+            }
+        }
+    }
+      m,
+    func fileOutput(_ output: AVCaptureFileOutput,
+                   didStartRecordingTo fileURL: URL,
+                   from connections: [AVCaptureConnection]) {
+        // Optional: Handle recording start
     }
 }
 
@@ -92,6 +144,7 @@ struct CameraPreviewView: UIViewRepresentable {
 struct CameraView: View {
     @StateObject private var cameraManager = CameraManager()
     @Environment(\.dismiss) private var dismiss
+    let onVideoRecorded: (URL) -> Void
     
     var body: some View {
         ZStack {
@@ -115,15 +168,23 @@ struct CameraView: View {
                     Spacer()
                     
                     // Record button
-                    Circle()
-                        .stroke(Color.white, lineWidth: 3)
-                        .frame(width: 72, height: 72)
-                        .overlay(
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 64, height: 64)
-                        )
-                        .padding(.bottom, 30)
+                    Button(action: {
+                        if cameraManager.isRecording {
+                            cameraManager.stopRecording()
+                        } else {
+                            cameraManager.startRecording()
+                        }
+                    }) {
+                        Circle()
+                            .stroke(Color.white, lineWidth: 3)
+                            .frame(width: 72, height: 72)
+                            .overlay(
+                                Circle()
+                                    .fill(cameraManager.isRecording ? Color.red : Color.white)
+                                    .frame(width: 64, height: 64)
+                            )
+                    }
+                    .padding(.bottom, 30)
                 }
             } else {
                 VStack(spacing: 20) {
@@ -158,9 +219,17 @@ struct CameraView: View {
             }
         }
         .background(Color.black)
+        .onAppear {
+            cameraManager.onVideoRecorded = { url in
+                onVideoRecorded(url)
+                dismiss()
+            }
+        }
     }
 }
 
 #Preview {
-    CameraView()
+    CameraView { url in
+        print("Video recorded at: \(url)")
+    }
 } 

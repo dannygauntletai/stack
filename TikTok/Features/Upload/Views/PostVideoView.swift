@@ -47,7 +47,6 @@ struct UploadStatusPopup: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("File: \(videoName)")
                 Text("Caption: \(caption)")
-                Text("Privacy: \(isPrivate ? "Private" : "Public")")
                 Text("Time: \(Date().formatted(date: .numeric, time: .standard))")
             }
             .font(.system(size: 14))
@@ -80,7 +79,6 @@ struct PostVideoView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = VideoUploadViewModel()
     @State private var caption = ""
-    @State private var isPrivate = false
     @State private var showAlert = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
@@ -131,7 +129,8 @@ struct PostVideoView: View {
                             if let player = player {
                                 VideoPlayer(player: player)
                                     .aspectRatio(9/16, contentMode: .fit)
-                                    .frame(maxHeight: 400)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(maxHeight: .infinity)
                                     .cornerRadius(12)
                                     .onAppear {
                                         player.play()
@@ -147,10 +146,11 @@ struct PostVideoView: View {
                             } else if isLoading {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    .frame(height: 400)
+                                    .frame(maxHeight: .infinity)
                             }
                         }
                     }
+                    .frame(maxHeight: .infinity)
                     
                     // Stack these sections together at the bottom
                     VStack(spacing: 16) {
@@ -160,22 +160,12 @@ struct PostVideoView: View {
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                             
-                            Text(caption)
+                            TextField("Write a caption...", text: $caption)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding()
                                 .background(Color(.systemGray6))
                                 .cornerRadius(12)
-                        }
-                        .padding(.horizontal)
-                        
-                        // Privacy toggle
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Privacy")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                            
-                            Toggle("Private video", isOn: $isPrivate)
-                                .tint(.white)
+                                .foregroundColor(.white)
                         }
                         .padding(.horizontal)
                         
@@ -211,7 +201,7 @@ struct PostVideoView: View {
                         status: uploadStatus,
                         videoName: videoURL.lastPathComponent,
                         caption: caption,
-                        isPrivate: isPrivate
+                        isPrivate: false
                     )
                 }
             }
@@ -260,7 +250,7 @@ struct PostVideoView: View {
                     status: viewModel.uploadStatus,
                     videoName: videoURL.lastPathComponent,
                     caption: caption,
-                    isPrivate: isPrivate
+                    isPrivate: false
                 )
             }
         }

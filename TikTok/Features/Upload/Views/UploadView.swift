@@ -1,12 +1,19 @@
 import SwiftUI
 import PhotosUI
 
+struct IdentifiableURL: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
 struct UploadView: View {
     @State private var showImagePicker = false
     @State private var showURLInput = false
     @State private var showCamera = false
     @State private var selectedVideoURL: URL?
     @State private var urlString = ""
+    @State private var recordedVideoURL: IdentifiableURL?
+    @State private var showPostView = false
     
     var body: some View {
         NavigationView {
@@ -53,7 +60,10 @@ struct UploadView: View {
             }
             .preferredColorScheme(.dark)
             .sheet(isPresented: $showCamera) {
-                CameraView()
+                CameraView { url in
+                    recordedVideoURL = IdentifiableURL(url: url)
+                    showPostView = true
+                }
             }
             .sheet(isPresented: $showImagePicker) {
                 MediaPickerView { url in
@@ -70,6 +80,9 @@ struct UploadView: View {
                 if let url = selectedVideoURL {
                     PostVideoView(videoURL: url, showURLInput: $showURLInput)
                 }
+            }
+            .fullScreenCover(item: $recordedVideoURL) { identifiableURL in
+                PostVideoView(videoURL: identifiableURL.url, showURLInput: $showURLInput)
             }
         }
     }
