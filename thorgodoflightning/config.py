@@ -78,8 +78,7 @@ class Config:
             'Google Cloud': ['PROJECT_ID', 'PROJECT_NAME'],
             'Firebase': [
                 'FIREBASE_STORAGE_BUCKET',
-                'SERVICE_ACCOUNT_EMAIL',
-                'FIREBASE_CREDENTIALS'
+                'SERVICE_ACCOUNT_EMAIL'
             ],
             'Pinecone': [
                 'PINECONE_API_KEY',
@@ -100,6 +99,12 @@ class Config:
             for category, vars in missing.items():
                 error_msg += f"\n{category}:\n" + "\n".join(f"- {var}" for var in vars)
             if cls.is_production():
+                logger.error(error_msg)  # Log the error but don't raise if Firebase is initialized
+                if 'Firebase' in missing and len(missing) == 1:
+                    # If only Firebase credentials are missing but Firebase is initialized, continue
+                    if FirebaseService.get_app():
+                        logger.info("Firebase is already initialized, continuing despite missing credentials in config")
+                        return
                 raise ValueError(error_msg)
             else:
                 logger.warning(error_msg) 
