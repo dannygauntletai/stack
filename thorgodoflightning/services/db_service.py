@@ -41,6 +41,9 @@ class DatabaseService:
                     update_data['vectorId'] = data['vectorId']
                 if 'vectorMetadata' in data:
                     update_data['vectorMetadata'] = data['vectorMetadata']
+                # Add supplement recommendations to the update
+                if 'supplement_recommendations' in data.get('healthAnalysis', {}):
+                    update_data['supplementRecommendations'] = data['healthAnalysis']['supplement_recommendations']
             
             # Update document
             doc_ref.update(update_data)

@@ -33,19 +33,46 @@ class VideoService:
             # Create the analysis dictionary
             video_analysis = {
                 'labels': [],
-                'explicit_content': []
+                'explicit_content': [],
+                'content_categories': {
+                    'primary_category': '',
+                    'activities': [],
+                    'environment': '',
+                    'objects': []
+                }
             }
             
             # Process labels
+            activity_keywords = {
+                'exercise': ['workout', 'exercise', 'fitness', 'training', 'sports', 'running', 'yoga', 'gym'],
+                'study': ['reading', 'studying', 'learning', 'education', 'books', 'writing', 'school'],
+                'food': ['cooking', 'food', 'meal', 'eating', 'nutrition', 'diet', 'recipe'],
+                'wellness': ['meditation', 'relaxation', 'wellness', 'health', 'spa', 'massage', 'mindfulness'],
+                'outdoor': ['nature', 'hiking', 'camping', 'garden', 'outdoor', 'park']
+            }
+            
+            detected_activities = set()
+            
             for annotation in result.annotation_results:
                 if hasattr(annotation, 'segment_label_annotations'):
-                    video_analysis['labels'] = [
-                        {
+                    # Process and categorize labels
+                    for label in annotation.segment_label_annotations:
+                        label_info = {
                             'description': label.entity.description,
                             'confidence': label.segments[0].confidence if label.segments else 0.0
                         }
-                        for label in annotation.segment_label_annotations
-                    ]
+                        video_analysis['labels'].append(label_info)
+                        
+                        # Categorize label
+                        label_lower = label.entity.description.lower()
+                        for category, keywords in activity_keywords.items():
+                            if any(keyword in label_lower for keyword in keywords):
+                                detected_activities.add(category)
+                                video_analysis['content_categories']['activities'].append({
+                                    'category': category,
+                                    'label': label.entity.description,
+                                    'confidence': label.segments[0].confidence if label.segments else 0.0
+                                })
                 
                 # Process explicit content
                 if hasattr(annotation, 'explicit_annotation'):
@@ -57,8 +84,26 @@ class VideoService:
                         for frame in annotation.explicit_annotation.frames
                     ]
             
-            print("<THOR_DEBUG> Analysis complete")
-            print(f"<THOR_DEBUG> Found {len(video_analysis['labels'])} labels")
+            # Determine primary category based on frequency and confidence
+            if detected_activities:
+                activity_scores = {}
+                for activity in video_analysis['content_categories']['activities']:
+                    category = activity['category']
+                    activity_scores[category] = activity_scores.get(category, 0) + activity['confidence']
+                
+                video_analysis['content_categories']['primary_category'] = max(
+                    activity_scores.items(),
+                    key=lambda x: x[1]
+                )[0]
+            
+            # Set environment based on existing labels
+            video_analysis['content_categories']['environment'] = VideoService._categorize_environment(
+                video_analysis['labels']
+            )
+            
+            print("<THOR_DEBUG> Enhanced analysis complete")
+            print(f"<THOR_DEBUG> Primary category: {video_analysis['content_categories']['primary_category']}")
+            print(f"<THOR_DEBUG> Detected activities: {detected_activities}")
             print(f"<THOR_DEBUG> Analysis result: {json.dumps(video_analysis, indent=2)}")
             
             return video_analysis
@@ -69,11 +114,23 @@ class VideoService:
             raise ValueError(f"Video analysis failed: {str(e)}")
 
     @staticmethod
-    def _categorize_environment(labels) -> str:
-        # Moving existing _categorize_environment implementation here
-        pass
-
-    @staticmethod
-    def _assess_safety(safety_annotations: list) -> dict:
-        # Moving existing _assess_safety implementation here
-        pass 
+    def _categorize_environment(labels: list) -> str:
+        """Categorize the environment based on labels."""
+        environment_keywords = {
+            'indoor': ['room', 'indoor', 'house', 'building', 'gym', 'office'],
+            'outdoor': ['nature', 'outdoor', 'park', 'garden', 'street', 'forest'],
+            'urban': ['city', 'urban', 'street', 'building'],
+            'natural': ['nature', 'forest', 'beach', 'mountain', 'park']
+        }
+        
+        environment_scores = {env: 0 for env in environment_keywords}
+        
+        for label in labels:
+            label_text = label['description'].lower()
+            for env, keywords in environment_keywords.items():
+                if any(keyword in label_text for keyword in keywords):
+                    environment_scores[env] += label['confidence']
+        
+        if any(environment_scores.values()):
+            return max(environment_scores.items(), key=lambda x: x[1])[0]
+        return 'unknown'
