@@ -127,9 +127,13 @@ struct HomeVideoOverlay: View {
             StackSelectionModal(video: stackVideo)
         }
         .sheet(isPresented: $showProductRecommendations) {
-            ProductRecommendationsSheet(supplements: video.supplementRecommendations)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+            ProductRecommendationsSheet(
+                supplements: video.supplementRecommendations,
+                videoId: video.id,
+                userId: video.userId
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .onAppear {
             updateInteraction()

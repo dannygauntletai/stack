@@ -2,10 +2,14 @@ import SwiftUI
 
 struct ProductRecommendationsSheet: View {
     let supplements: [SupplementRecommendation]
+    let videoId: String
+    let userId: String
     @Environment(\.dismiss) private var dismiss
     @State private var products: [Product] = []
     @State private var isLoading = false
     @State private var selectedSupplementIndex = 0
+    
+    private let cacheManager = ProductCacheManager.shared
     
     var body: some View {
         VStack(spacing: 0) {
@@ -63,11 +67,20 @@ struct ProductRecommendationsSheet: View {
                 
                 Divider()
                 
-                // Products list
+                // Products list with centered loading spinner
                 ScrollView {
                     if isLoading {
-                        ProgressView()
-                            .padding()
+                        GeometryReader { geometry in
+                            VStack {
+                                Spacer()
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle())
+                                    .scaleEffect(1.5) // Optional: Adjust size of the spinner
+                                Spacer()
+                            }
+                            .frame(width: geometry.size.width, height: geometry.size.height) // Ensure it takes full space
+                        }
+                        .frame(height: UIScreen.main.bounds.height * 0.3) // Set a fixed height for the GeometryReader
                     } else {
                         LazyVStack(spacing: 16) {
                             ForEach(products, id: \.asin) { product in
@@ -90,7 +103,15 @@ struct ProductRecommendationsSheet: View {
     private func fetchProducts(for supplement: SupplementRecommendation) {
         isLoading = true
         
-        // Call your API endpoint
+        // Check cache first
+        let cacheKey = "\(videoId)_\(userId)_\(supplement.name)"
+        if let cachedProducts = cacheManager.getProducts(for: cacheKey) {
+            self.products = cachedProducts
+            self.isLoading = false
+            return
+        }
+        
+        // Call API if not in cache
         Task {
             do {
                 let url = URL(string: "http://localhost:8000/products/supplements")!
@@ -113,6 +134,8 @@ struct ProductRecommendationsSheet: View {
                 
                 await MainActor.run {
                     self.products = response.products
+                    // Cache the results
+                    self.cacheManager.cacheProducts(response.products, for: cacheKey)
                     self.isLoading = false
                 }
             } catch {
@@ -132,7 +155,7 @@ struct ProductRow: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 // Product image
                 AsyncImage(url: URL(string: product.imageUrl)) { image in
                     image
@@ -142,29 +165,35 @@ struct ProductRow: View {
                     Rectangle()
                         .fill(Color.gray.opacity(0.2))
                 }
-                .frame(width: 80, height: 80)
+                .frame(width: 70, height: 70)
+                .cornerRadius(8)
                 
+                // Product details
                 VStack(alignment: .leading, spacing: 4) {
                     Text(product.title)
                         .font(.system(size: 14))
                         .lineLimit(2)
+                        .multilineTextAlignment(.leading)
                     
                     Text(product.price.displayAmount)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                     
                     if let rating = product.rating {
                         HStack(spacing: 4) {
                             Image(systemName: "star.fill")
                                 .foregroundColor(.yellow)
+                                .font(.system(size: 12))
                             Text(String(format: "%.1f", rating))
                                 .font(.system(size: 12))
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             
-            HStack(spacing: 0) {
-                // Amazon Link Button (75% width)
+            // Buttons
+            HStack(spacing: 8) {
+                // Amazon Link Button
                 Link(destination: URL(string: product.productUrl)!) {
                     Text("View on Amazon")
                         .font(.system(size: 14, weight: .medium))
@@ -172,25 +201,25 @@ struct ProductRow: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
                 }
-                .frame(width: UIScreen.main.bounds.width * 0.75)
                 
-                // Save Button (25% width)
+                // Save Button
                 Button {
                     showCategorySelection = true
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        .frame(width: 36)
+                        .frame(maxHeight: .infinity)
                         .background(Color.green)
+                        .cornerRadius(8)
                 }
-                .frame(width: UIScreen.main.bounds.width * 0.25)
             }
-            .cornerRadius(8)
+            .frame(height: 36)
         }
-        .padding()
+        .padding(12)
         .background(Color.gray.opacity(0.1))
         .cornerRadius(12)
         .sheet(isPresented: $showCategorySelection) {
@@ -264,5 +293,32 @@ struct SupplementRecommendation: Codable {
             "reason": reason,
             "caution": caution
         ]
+    }
+}
+
+// Add cache manager
+final class ProductCacheManager {
+    static let shared = ProductCacheManager()
+    private var cache: [String: (products: [Product], timestamp: Date)] = [:]
+    private let cacheTimeout: TimeInterval = 3600 // 1 hour
+    
+    private init() {}
+    
+    func cacheProducts(_ products: [Product], for key: String) {
+        cache[key] = (products, Date())
+    }
+    
+    func getProducts(for key: String) -> [Product]? {
+        guard let cachedData = cache[key],
+              Date().timeIntervalSince(cachedData.timestamp) < cacheTimeout else {
+            // Remove expired cache
+            cache[key] = nil
+            return nil
+        }
+        return cachedData.products
+    }
+    
+    func clearCache() {
+        cache.removeAll()
     }
 } 
