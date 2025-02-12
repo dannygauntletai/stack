@@ -15,6 +15,8 @@ services:
         value: true  # Temporarily set to true for debugging
       - key: BASE_URL
         value: https://stack-pjz5.onrender.com
+      - key: GOOGLE_CLOUD_PROJECT
+        value: "tiktok-18d7a"  # Updated with actual project ID from .env
     envVarsFromFiles:
       - key: FIREBASE_CREDENTIALS
         fromFile: .env

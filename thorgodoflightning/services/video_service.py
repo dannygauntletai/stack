@@ -3,6 +3,8 @@ from typing import Dict
 import json
 import traceback
 import logging
+from google.oauth2 import service_account
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +15,24 @@ class VideoService:
         print(f"<THOR_DEBUG> Processing video URL: {video_url}")
         
         try:
-            video_client = videointelligence.VideoIntelligenceServiceClient()
+            # Get Firebase credentials from environment
+            firebase_creds = os.getenv('FIREBASE_CREDENTIALS')
+            if not firebase_creds:
+                raise ValueError("FIREBASE_CREDENTIALS not found in environment")
+            
+            # Parse credentials JSON
+            cred_dict = json.loads(firebase_creds)
+            
+            # Create credentials object for Video Intelligence
+            credentials = service_account.Credentials.from_service_account_info(
+                cred_dict,
+                scopes=['https://www.googleapis.com/auth/cloud-platform']
+            )
+            
+            # Create Video Intelligence client with explicit credentials
+            video_client = videointelligence.VideoIntelligenceServiceClient(
+                credentials=credentials
+            )
             
             if not video_url.startswith('gs://'):
                 logger.error(f"Invalid video URL format: {video_url}")
