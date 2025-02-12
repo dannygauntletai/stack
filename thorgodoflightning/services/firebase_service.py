@@ -15,15 +15,16 @@ class FirebaseService:
         """Initialize Firebase if not already initialized"""
         if not cls._instance:
             try:
-                # Set environment variable for credentials
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "service-account.json"
-
-                # Remove emulator settings if present
-                if "FIRESTORE_EMULATOR_HOST" in os.environ:
-                    del os.environ["FIRESTORE_EMULATOR_HOST"]
+                # Handle credentials in production vs development
+                if Config.is_development():
+                    cred = credentials.Certificate("service-account.json")
+                else:
+                    # In production, use JSON string from environment variable
+                    import json
+                    cred_dict = json.loads(os.getenv('FIREBASE_CREDENTIALS', '{}'))
+                    cred = credentials.Certificate(cred_dict)
 
                 # Initialize Firebase Admin SDK
-                cred = credentials.Certificate("service-account.json")
                 cls._instance = firebase_admin.initialize_app(cred)
                 cls._db = firestore.client()
                 
