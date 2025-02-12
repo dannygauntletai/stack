@@ -1,0 +1,292 @@
+analysisStatus
+"completed"
+(string)
+
+
+caption
+""
+(string)
+
+
+comments
+0
+(number)
+
+
+createdAt
+February 11, 2025 at 7:09:53 PM UTC-6
+(timestamp)
+
+
+
+healthAnalysis
+(map)
+
+
+
+benefits
+(array)
+
+
+0
+"Physical activity promotion"
+(string)
+
+
+1
+"Stress reduction"
+(string)
+
+
+2
+"Connection with nature"
+(string)
+
+
+content_type
+"outdoor"
+(string)
+
+
+longevity_impact
+"Engaging in outdoor activities like gardening can positively impact longevity by promoting physical activity, stress reduction, and connection with nature, all of which contribute to overall well-being and longevity."
+(string)
+
+
+
+recommendations
+(array)
+
+
+0
+"Ensure proper sun protection during outdoor activities"
+(string)
+
+
+1
+"Stay hydrated by replenishing electrolytes"
+(string)
+
+
+
+risks
+(array)
+
+
+0
+"Sun damage"
+(string)
+
+
+1
+"Dehydration"
+(string)
+
+
+summary
+"Working in an outdoor garden or field may lead to sun exposure and dehydration, requiring sun protection and electrolyte support."
+(string)
+
+
+
+supplement_recommendations
+(array)
+
+
+
+0
+(map)
+
+
+caution
+"Choose a broad-spectrum sunscreen with at least SPF 30."
+(string)
+
+
+dosage
+"Apply as needed"
+(string)
+
+
+name
+"Sunscreen"
+(string)
+
+
+reason
+"Provides protection against harmful UV rays during prolonged outdoor exposure in a garden or field."
+(string)
+
+
+timing
+"Before outdoor activities"
+(string)
+
+
+
+1
+(map)
+
+
+caution
+"Avoid excessive intake to prevent electrolyte imbalances."
+(string)
+
+
+dosage
+"As per product instructions"
+(string)
+
+
+name
+"Electrolyte Replenishment"
+(string)
+
+
+reason
+"Helps maintain hydration and replace electrolytes lost through sweating while working in outdoor environments."
+(string)
+
+
+timing
+"During and after outdoor activities"
+(string)
+
+
+
+tags
+(array)
+
+
+0
+"outdoor"
+(string)
+
+
+1
+"gardening"
+(string)
+
+
+2
+"sun"
+(string)
+
+
+healthImpactScore
+0
+(number)
+
+
+id
+"2502E4F5-E4E4-421C-9CC5-5A8ADE2611CB"
+(string)
+
+
+likes
+0
+(number)
+
+
+profileImageUrl
+""
+(string)
+
+
+shares
+0
+(number)
+
+
+
+supplementRecommendations
+(array)
+
+
+
+0
+(map)
+
+
+caution
+"Choose a broad-spectrum sunscreen with at least SPF 30."
+(string)
+
+
+dosage
+"Apply as needed"
+(string)
+
+
+name
+"Sunscreen"
+(string)
+
+
+reason
+"Provides protection against harmful UV rays during prolonged outdoor exposure in a garden or field."
+(string)
+
+
+timing
+"Before outdoor activities"
+(string)
+
+
+
+1
+(map)
+
+
+caution
+"Avoid excessive intake to prevent electrolyte imbalances."
+(string)
+
+
+dosage
+"As per product instructions"
+(string)
+
+
+name
+"Electrolyte Replenishment"
+(string)
+
+
+reason
+"Helps maintain hydration and replace electrolytes lost through sweating while working in outdoor environments."
+(string)
+
+
+timing
+"During and after outdoor activities"
+(string)
+
+
+
+tags
+(array)
+
+
+thumbnailUrl
+"gs://tiktok-18d7a.firebasestorage.app/thumbnails/2502E4F5-E4E4-421C-9CC5-5A8ADE2611CB.jpg"
+(string)
+
+
+updatedAt
+February 11, 2025 at 7:10:19 PM UTC-6
+(timestamp)
+
+
+userId
+"cnBDu2Baf6QTV7Jklov2qgQI2iA3"
+(string)
+
+
+username
+"test"
+(string)
+
+
+videoUrl
+"gs://tiktok-18d7a.firebasestorage.app/videos/2502E4F5-E4E4-421C-9CC5-5A8ADE2611CB.mp4"

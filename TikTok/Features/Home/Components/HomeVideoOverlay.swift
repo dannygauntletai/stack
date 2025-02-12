@@ -6,6 +6,7 @@ struct HomeVideoOverlay: View {
     @State private var videoInteraction: VideoInteraction
     @State private var showStackSelection = false
     @State private var showComments = false
+    @State private var showProductRecommendations = false
     @State private var isPerformingAction = false
     
     init(video: Video) {
@@ -111,15 +112,15 @@ struct HomeVideoOverlay: View {
                     }
                 }
                 
-                // Share Button
+                // Replace Share Button with Products Button
                 Button {
-                    // Share functionality
+                    showProductRecommendations = true
                 } label: {
                     VStack(spacing: 3) {
-                        Image(systemName: "arrowshape.turn.up.forward.fill")
+                        Image(systemName: "cart.fill")  // Changed icon to cart
                             .font(.system(size: 30))
                             .foregroundStyle(.white)
-                        Text("Share")
+                        Text("Products")  // Changed text
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.white)
                     }
@@ -138,6 +139,11 @@ struct HomeVideoOverlay: View {
         }
         .sheet(isPresented: $showStackSelection) {
             StackSelectionModal(video: stackVideo)
+        }
+        .sheet(isPresented: $showProductRecommendations) {
+            ProductRecommendationsSheet(supplements: video.supplementRecommendations)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .onAppear {
             updateInteraction()
