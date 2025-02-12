@@ -10,4 +10,3 @@ python-multipart>=0.0.6
 pydantic>=2.4.2
 pinecone-client>=2.2.4
 boto3>=1.28.0
-paapi5-python-sdk==1.0.0
