@@ -9,6 +9,7 @@ from dependencies import get_db_service, get_recommendation_service
 from firebase_admin import auth
 import logging
 import traceback
+import uuid
 
 router = APIRouter(
     prefix="/videos",
@@ -58,72 +59,84 @@ async def get_video(
 @router.post("/analyze")
 async def analyze_video(request: Request, db_service: DBServiceDep) -> Dict:
     """Analyze video content and health impact"""
-    logger.info("Starting video analysis")
+    request_id = str(uuid.uuid4())[:8]  # Add for request tracking
+    logger.info(f"[{request_id}] Starting video analysis")
     try:
+        # Log request headers for debugging
+        headers = dict(request.headers)
+        logger.debug(f"[{request_id}] Request headers: {headers}")
+        
+        # Get request body
+        try:
+            body = await request.json()
+            logger.debug(f"[{request_id}] Request body: {body}")
+        except Exception as e:
+            logger.error(f"[{request_id}] Failed to parse request body: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=400, detail="Invalid request body")
+
         # Verify authentication
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
-            logger.error("No valid authorization header")
+            logger.error(f"[{request_id}] No valid authorization header")
             raise HTTPException(status_code=401, detail="No valid authorization header")
             
         token = auth_header.split(' ')[1]
         try:
             decoded_token = auth.verify_id_token(token)
-            logger.info(f"Authentication successful for user: {decoded_token['uid']}")
+            logger.info(f"[{request_id}] Authentication successful for user: {decoded_token['uid']}")
         except Exception as e:
-            logger.error(f"Token verification failed: {str(e)}", exc_info=True)
+            logger.error(f"[{request_id}] Token verification failed: {str(e)}", exc_info=True)
             raise HTTPException(status_code=401, detail="Invalid token")
 
         # Get request data
-        body = await request.json()
         video_url = body.get("videoUrl")
         if not video_url:
-            logger.error("Missing videoUrl in request")
+            logger.error(f"[{request_id}] Missing videoUrl in request")
             raise HTTPException(status_code=400, detail="Missing videoUrl in request")
 
-        logger.info(f"Processing video URL: {video_url}")
+        logger.info(f"[{request_id}] Processing video URL: {video_url}")
 
         # Get video document
         try:
             video_id, video_data = await db_service.get_video_document(video_url)
-            logger.info(f"Retrieved video document with ID: {video_id}")
+            logger.info(f"[{request_id}] Retrieved video document with ID: {video_id}")
         except Exception as e:
-            logger.error(f"Error retrieving video document: {str(e)}", exc_info=True)
+            logger.error(f"[{request_id}] Error retrieving video document: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
         
         if not video_data:
-            logger.error("Video not found")
+            logger.error(f"[{request_id}] Video not found")
             raise HTTPException(status_code=404, detail="Video not found")
             
         # Verify ownership
         if video_data.get('userId') != decoded_token['uid']:
-            logger.error(f"Permission denied for user {decoded_token['uid']} on video {video_id}")
+            logger.error(f"[{request_id}] Permission denied for user {decoded_token['uid']} on video {video_id}")
             raise HTTPException(status_code=403, detail="You don't have permission to analyze this video")
 
         # Update status to processing
         await db_service.update_video_status(video_id, 'processing')
-        logger.info(f"Updated video {video_id} status to processing")
+        logger.info(f"[{request_id}] Updated video {video_id} status to processing")
         
         try:
             # Analyze video content
-            logger.info("Starting video content analysis")
+            logger.info(f"[{request_id}] Starting video content analysis")
             video_analysis = await VideoService.analyze_video_content(video_url)
-            logger.info("Video content analysis completed")
+            logger.info(f"[{request_id}] Video content analysis completed")
             
             # Get health impact analysis
-            logger.info("Starting health impact analysis")
+            logger.info(f"[{request_id}] Starting health impact analysis")
             score, reasoning = await HealthService.analyze_health_impact(video_analysis)
-            logger.info("Health impact analysis completed")
+            logger.info(f"[{request_id}] Health impact analysis completed")
             
             # Update results
             await db_service.update_video_status(video_id, 'completed', {
                 'healthImpactScore': score,
                 'healthAnalysis': reasoning
             })
-            logger.info(f"Updated video {video_id} with analysis results")
+            logger.info(f"[{request_id}] Updated video {video_id} with analysis results")
 
         except Exception as e:
-            logger.error(f"Analysis failed: {str(e)}", exc_info=True)
+            logger.error(f"[{request_id}] Analysis failed: {str(e)}", exc_info=True)
             await db_service.update_video_status(video_id, 'failed', {
                 'error': str(e)
             })
@@ -136,10 +149,13 @@ async def analyze_video(request: Request, db_service: DBServiceDep) -> Dict:
             'videoId': video_id
         }
         
-    except HTTPException:
+    except HTTPException as he:
+        logger.error(f"[{request_id}] HTTP Exception: {str(he)}", exc_info=True)
         raise
     except Exception as e:
-        logger.error(f"Error in analyze_video: {str(e)}", exc_info=True)
+        logger.error(f"[{request_id}] Unexpected error: {str(e)}", exc_info=True)
+        # Log the full traceback
+        logger.error(f"[{request_id}] Traceback:", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{video_id}/analyze")

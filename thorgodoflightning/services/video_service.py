@@ -2,17 +2,21 @@ from google.cloud import videointelligence_v1 as videointelligence
 from typing import Dict
 import json
 import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 class VideoService:
     @staticmethod
     async def analyze_video_content(video_url: str) -> Dict:
-        print("<THOR_DEBUG> Starting _analyze_video_content")
+        logger.info(f"Starting video content analysis for URL: {video_url}")
         print(f"<THOR_DEBUG> Processing video URL: {video_url}")
         
         try:
             video_client = videointelligence.VideoIntelligenceServiceClient()
             
             if not video_url.startswith('gs://'):
+                logger.error(f"Invalid video URL format: {video_url}")
                 raise ValueError("Invalid video URL format")
                 
             features = [
@@ -25,10 +29,14 @@ class VideoService:
                 features=features
             )
             
-            print("<THOR_DEBUG> Sending request to Video Intelligence API")
-            operation = video_client.annotate_video(request)
-            result = operation.result(timeout=480)
-            print("<THOR_DEBUG> Received Video Intelligence results")
+            logger.info("Sending request to Video Intelligence API")
+            try:
+                operation = video_client.annotate_video(request)
+                result = operation.result(timeout=480)
+                logger.info("Received Video Intelligence results")
+            except Exception as e:
+                logger.error(f"Video Intelligence API error: {str(e)}", exc_info=True)
+                raise
 
             # Create the analysis dictionary
             video_analysis = {

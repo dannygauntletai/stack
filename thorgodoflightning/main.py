@@ -4,16 +4,39 @@ import logging
 from routers import health_router, video_router, product_router
 from services.firebase_service import FirebaseService
 from config import Config
+import sys
+import logging.config
 
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG if Config.is_debug() else logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),  # Log to console
-        logging.FileHandler('app.log')  # Log to file
-    ]
-)
+# Configure logging to stdout for Render
+logging_config = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'stream': sys.stdout,
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG' if Config.is_debug() else 'INFO',
+    },
+    'loggers': {
+        'uvicorn': {'handlers': ['console'], 'level': 'INFO'},
+        'fastapi': {'handlers': ['console'], 'level': 'INFO'},
+        'video_router': {'handlers': ['console'], 'level': 'DEBUG'},
+        'health_router': {'handlers': ['console'], 'level': 'DEBUG'},
+        'services': {'handlers': ['console'], 'level': 'DEBUG'},
+    },
+}
+
+logging.config.dictConfig(logging_config)
 logger = logging.getLogger(__name__)
 
 # Initialize Firebase before creating FastAPI app
