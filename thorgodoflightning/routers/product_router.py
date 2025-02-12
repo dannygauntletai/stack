@@ -19,7 +19,7 @@ async def get_supplement_products(supplement: Dict) -> Dict:
         
         return {
             'success': True,
-            'products': [vars(product) for product in products],  # Convert Product objects to dicts
+            'products': [vars(product) for product in products],
             'supplement': supplement
         }
     except Exception as e:

@@ -1,10 +1,77 @@
 import SwiftUI
+import Foundation
+
+class ProductResearchViewModel: ObservableObject {
+    @Published var currentIndex = 0
+    @Published var researchResults: [String: ProductReport] = [:]
+    @Published var isResearching = false
+    @Published var selectedReport: ProductReport?
+    let products: [SavedProduct]
+    
+    private let baseURL = AppEnvironment.baseURL  // Use environment config
+    
+    init(products: [SavedProduct]) {
+        self.products = products
+    }
+
+    func startResearch(for product: SavedProduct) async {
+        guard !researchResults.keys.contains(product.id) else { return }
+        
+        isResearching = true
+        
+        do {
+            let url = URL(string: "\(baseURL)/agents/research/\(product.id)")!
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            
+            // Use only the fields that exist in SavedProduct
+            let productData: [String: Any] = [
+                "id": product.id,
+                "title": product.title,
+                "productUrl": product.productUrl,
+                "asin": product.asin,
+                "imageUrl": product.imageUrl,
+                "price": product.price.toDictionary()
+            ]
+            
+            request.httpBody = try JSONSerialization.data(withJSONObject: productData)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let report = try JSONDecoder().decode(ProductReport.self, from: data)
+            
+            await MainActor.run {
+                self.researchResults[product.id] = report
+                self.isResearching = false
+                
+                // Progress to next product if available
+                if self.currentIndex < self.products.count - 1 {
+                    self.currentIndex += 1
+                }
+            }
+        } catch {
+            print("Research error: \(error)")
+            await MainActor.run {
+                self.isResearching = false
+                // Still progress even on error to avoid getting stuck
+                if self.currentIndex < self.products.count - 1 {
+                    self.currentIndex += 1
+                }
+            }
+        }
+    }
+}
 
 struct ProductResearchView: View {
     let products: [SavedProduct]
+    @StateObject private var viewModel: ProductResearchViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var researchResults: [String: String] = [:]
-    @State private var currentResearchIndex = 0
+    
+    init(products: [SavedProduct]) {
+        self.products = products
+        // Initialize the view model with products
+        _viewModel = StateObject(wrappedValue: ProductResearchViewModel(products: products))
+    }
     
     var body: some View {
         NavigationView {
@@ -13,12 +80,16 @@ struct ProductResearchView: View {
                 
                 ScrollView {
                     VStack(spacing: 20) {
-                        ForEach(products) { product in
+                        ForEach(Array(products.enumerated()), id: \.element.id) { index, product in
                             ProductResearchCard(
                                 product: product,
-                                researchResult: researchResults[product.id],
-                                isResearching: currentResearchIndex < products.count && 
-                                    products[currentResearchIndex].id == product.id
+                                report: viewModel.researchResults[product.id],
+                                isResearching: viewModel.isResearching && index == viewModel.currentIndex,
+                                onViewReport: {
+                                    if let report = viewModel.researchResults[product.id] {
+                                        viewModel.selectedReport = report
+                                    }
+                                }
                             )
                         }
                     }
@@ -34,14 +105,31 @@ struct ProductResearchView: View {
                     }
                 }
             }
+            .task {
+                // Start research for first product
+                if let firstProduct = products.first {
+                    await viewModel.startResearch(for: firstProduct)
+                }
+            }
+            .onChange(of: viewModel.currentIndex, initial: false) { _, newIndex in
+                if newIndex < products.count {
+                    Task {
+                        await viewModel.startResearch(for: products[newIndex])
+                    }
+                }
+            }
+            .sheet(item: $viewModel.selectedReport) { report in
+                ProductReportView(report: report)
+            }
         }
     }
 }
 
 struct ProductResearchCard: View {
     let product: SavedProduct
-    let researchResult: String?
+    let report: ProductReport?
     let isResearching: Bool
+    let onViewReport: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -75,8 +163,8 @@ struct ProductResearchCard: View {
                         Text("Researching...")
                             .foregroundColor(.gray)
                     }
-                } else if let result = researchResult {
-                    Text(result)
+                } else if let report = report {
+                    Text(report.research.summary)
                         .foregroundColor(.white)
                 } else {
                     Text("Waiting...")
@@ -88,5 +176,8 @@ struct ProductResearchCard: View {
         .padding()
         .background(Color.gray.opacity(0.1))
         .cornerRadius(12)
+        .onTapGesture {
+            onViewReport()
+        }
     }
 } 
