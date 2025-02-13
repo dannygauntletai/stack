@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import Dict
-from services.agents.agent_router import AgentRouter
+from services.agent_service import AgentService
 from services.db_service import DatabaseService
 from dependencies import get_db_service
 import logging
@@ -24,11 +24,11 @@ async def research_product(
         product_data = await request.json()
         logger.debug(f"Received product data: {product_data}")
             
-        # Initialize agent router
-        agent_router = AgentRouter(db_service)
+        # Initialize agent service
+        agent_service = AgentService(db_service)
         
         # Process research request with full product data
-        result = await agent_router.route_request("research", product_data)
+        result = await agent_service.route_request("research", product_data)
         
         return result
         
