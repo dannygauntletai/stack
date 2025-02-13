@@ -5,7 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class AgentRouter:
+class AgentService:
     def __init__(self, db_service: DatabaseService):
         self.db_service = db_service
         self.research_agent = ResearchAgent(db_service)
