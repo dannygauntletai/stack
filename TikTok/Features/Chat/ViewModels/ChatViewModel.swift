@@ -42,31 +42,77 @@ class ChatViewModel: ObservableObject {
             guard let self = self else { return }
             
             if let error = error {
-                print("Error listening for messages: \(error.localizedDescription)")
+                print("❌ Error listening for messages: \(error.localizedDescription)")
                 return
             }
             
-            guard let documents = snapshot?.documents else { return }
-            
-            // Process messages
-            let newMessages = documents.compactMap { document -> ChatMessage? in
-                let data = document.data()
-                
-                return ChatMessage(
-                    id: document.documentID,
-                    text: data["content"] as? String,
-                    imageURL: nil,
-                    isFromCurrentUser: (data["role"] as? String) == "user",
-                    timestamp: Date(timeIntervalSince1970: data["timestamp"] as? Double ?? 0),
-                    senderId: data["role"] as? String ?? "",
-                    sequence: data["sequence"] as? Int ?? 0
-                )
+            guard let documents = snapshot?.documents else { 
+                print("⚠️ No documents in snapshot")
+                return 
             }
+            
+            print("📥 Received \(documents.count) documents from Firestore")
+            let newMessages = self.processMessages(documents)
             
             Task { @MainActor in
+                print("🔄 Updating messages array with \(newMessages.count) messages")
                 self.messages = newMessages
+                print("✅ Messages array updated, now contains \(self.messages.count) messages")
             }
         }
+    }
+    
+    private func processMessages(_ documents: [QueryDocumentSnapshot]) -> [ChatMessage] {
+        print("Processing \(documents.count) messages")
+        
+        let newMessages = documents.compactMap { document -> ChatMessage? in
+            let data = document.data()
+            
+            // Get the raw content
+            guard let content = data["content"] as? String else { 
+                print("⚠️ No content found in message")
+                return nil 
+            }
+            
+            print("📝 Raw message content: \(content)")
+            
+            // Parse video IDs and clean up text if present
+            var cleanedText = content
+            var videoIds: [String] = []
+            
+            // Extract video IDs and remove them from display text
+            if content.contains("Video ID:") {
+                print("🎥 Found Video ID in message")
+                let components = content.components(separatedBy: "Video ID:")
+                cleanedText = components[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                // Extract IDs from remaining components
+                for component in components.dropFirst() {
+                    let id = component.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .components(separatedBy: .newlines)[0]
+                    videoIds.append(id)
+                }
+                print("🎬 Extracted video IDs: \(videoIds)")
+                print("📋 Cleaned text: \(cleanedText)")
+            }
+            
+            let message = ChatMessage(
+                id: document.documentID,
+                text: cleanedText,
+                imageURL: data["imageURL"] as? String,
+                isFromCurrentUser: (data["role"] as? String) == "user",
+                timestamp: Date(timeIntervalSince1970: data["timestamp"] as? Double ?? 0),
+                senderId: data["senderId"] as? String ?? "",
+                sequence: data["sequence"] as? Int ?? 0,
+                videoIds: videoIds
+            )
+            
+            print("📱 Created message with \(message.videoIds.count) video IDs")
+            return message
+        }
+        
+        print("✨ Processed \(newMessages.count) messages")
+        return newMessages
     }
     
     func sendMessage(_ text: String) async {
