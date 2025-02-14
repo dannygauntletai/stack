@@ -31,14 +31,14 @@ class ChatAgent(BaseAgent):
             # Check if this is a video request
             if self._is_video_request(content):
                 # Get video recommendations
-                vector_results = await VectorService.search_similar(content, 3)
+                vector_results = await VectorService.search_similar(content, 1)
                 video_ids = [result['id'] for result in vector_results]
                 videos = await self.db_service.get_videos_by_ids(video_ids)
                 
                 # Format video response
-                response_text = "Here are some relevant videos:\n\n"
+                response_text = "Here are some relevant videos:\n"
                 for video in videos:
-                    response_text += f"- {video.get('caption', 'Untitled')}\n"
+                    response_text += f"{video.get('caption', 'Untitled')}\n"
                     response_text += f"  Video ID: {video['id']}\n\n"
             else:
                 # Get chat response

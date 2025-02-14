@@ -45,12 +45,8 @@ struct MessageBubble: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 
-                // Show video thumbnails in a separate bubble if present
-                if !message.videoIds.isEmpty {
-                    Text("") // Hidden debug text
-                        .hidden()
-                        .onAppear { debugPrint("📺 Should display \(message.videoIds.count) video thumbnails") }
-                    
+                // Only show video thumbnails for recommendation messages
+                if message.isRecommendationMessage {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(videoThumbnails, id: \.id) { video in
                             Button(action: {
@@ -81,16 +77,14 @@ struct MessageBubble: View {
         .padding(.vertical, 2)
         .onAppear {
             debugPrint("👋 MessageBubble appeared")
-            if !message.videoIds.isEmpty {
-                debugPrint("🔄 Message appeared with \(message.videoIds.count) videos: \(message.videoIds)")
-                // Clear existing thumbnails before loading new ones
+            if message.isRecommendationMessage {
+                debugPrint("🔄 Loading thumbnails for recommendation message")
                 videoThumbnails = []
                 loadVideoThumbnails()
             }
         }
         .onDisappear {
             debugPrint("👋 MessageBubble disappeared")
-            // Clear thumbnails when view disappears
             videoThumbnails = []
         }
     }
