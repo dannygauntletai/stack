@@ -105,11 +105,6 @@ struct ChatMessageBubble: View {
                         ProgressView()
                     }
                 }
-                
-                Text(message.timestampString)
-                    .font(.caption2)
-                    .foregroundColor(.gray)
-                    .padding(.horizontal, 4)
             }
             
             if !message.isFromCurrentUser {
