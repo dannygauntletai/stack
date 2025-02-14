@@ -53,32 +53,31 @@ class VectorService:
         if not cls._openai_client:
             cls.initialize()
 
-        # Create a rich text representation of the video data
+        # Create a rich text representation prioritizing the video summary
         text_content = []
         
-        # Add video title and description if available
+        # Start with video summary if available (given highest weight)
+        if 'videoSummary' in data:
+            text_content.append(f"Summary: {data['videoSummary']}")
+            
+        # Add title and description
         if 'title' in data:
             text_content.append(f"Title: {data['title']}")
         if 'description' in data:
             text_content.append(f"Description: {data['description']}")
             
-        # Add content categories and activities
+        # Add other metadata with less weight
         if 'content_categories' in data:
             cats = data['content_categories']
             if 'primary_category' in cats:
                 text_content.append(f"Category: {cats['primary_category']}")
             if 'activities' in cats:
-                activities = [f"{a['label']} ({a['confidence']:.2f})" 
-                            for a in cats['activities']]
+                activities = [f"{a['label']}" for a in cats['activities']]
                 text_content.append(f"Activities: {', '.join(activities)}")
-            if 'environment' in cats:
-                text_content.append(f"Environment: {cats['environment']}")
 
-        # Add health analysis if available
+        # Add health analysis
         if 'healthAnalysis' in data:
             health = data['healthAnalysis']
-            if 'summary' in health:
-                text_content.append(f"Health Impact: {health['summary']}")
             if 'benefits' in health:
                 text_content.append(f"Benefits: {', '.join(health['benefits'])}")
             if 'tags' in health:

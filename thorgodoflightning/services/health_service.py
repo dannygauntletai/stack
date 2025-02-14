@@ -1,5 +1,5 @@
 from openai import OpenAI
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 import json
 import logging
 import traceback
@@ -162,3 +162,111 @@ class HealthService:
                 clean_tags.append('neutral')
                 
         return clean_tags[:3]  # Limit to first 3 tags 
+
+    def _get_supplement_recommendations(self, activities: List[Dict], tags: List[str]) -> List[Dict]:
+        """Get supplement recommendations based on activities and health tags"""
+        
+        # Expanded supplement database with categories
+        SUPPLEMENT_DATABASE = {
+            'performance': [
+                {'name': 'Creatine Monohydrate', 'benefits': ['Muscle strength', 'Power output', 'Recovery']},
+                {'name': 'Beta-Alanine', 'benefits': ['Endurance', 'Muscle fatigue reduction']},
+                {'name': 'Caffeine', 'benefits': ['Energy', 'Focus', 'Performance']},
+                {'name': 'BCAAs', 'benefits': ['Muscle recovery', 'Endurance', 'Protein synthesis']},
+                {'name': 'Citrulline Malate', 'benefits': ['Blood flow', 'Endurance', 'Recovery']},
+                {'name': 'Pre-workout Complex', 'benefits': ['Energy', 'Focus', 'Pump']}
+            ],
+            'recovery': [
+                {'name': 'Whey Protein', 'benefits': ['Muscle recovery', 'Protein synthesis']},
+                {'name': 'L-Glutamine', 'benefits': ['Recovery', 'Immune support']},
+                {'name': 'ZMA', 'benefits': ['Sleep quality', 'Recovery', 'Hormone support']},
+                {'name': 'Casein Protein', 'benefits': ['Overnight recovery', 'Protein synthesis']},
+                {'name': 'Tart Cherry Extract', 'benefits': ['Recovery', 'Sleep', 'Anti-inflammation']},
+                {'name': 'Collagen Peptides', 'benefits': ['Joint health', 'Recovery', 'Tissue repair']}
+            ],
+            'wellness': [
+                {'name': 'Fish Oil (Omega-3)', 'benefits': ['Joint health', 'Brain function', 'Heart health']},
+                {'name': 'Vitamin D3', 'benefits': ['Immune system', 'Bone health', 'Mood']},
+                {'name': 'Magnesium', 'benefits': ['Sleep', 'Recovery', 'Muscle function']},
+                {'name': 'Multivitamin', 'benefits': ['Overall health', 'Nutrient gaps', 'Energy']},
+                {'name': 'Probiotics', 'benefits': ['Gut health', 'Immune system', 'Recovery']},
+                {'name': 'Ashwagandha', 'benefits': ['Stress relief', 'Recovery', 'Hormone balance']}
+            ],
+            'specific': [
+                {'name': 'Glucosamine & Chondroitin', 'benefits': ['Joint health', 'Mobility']},
+                {'name': 'MCT Oil', 'benefits': ['Energy', 'Mental clarity', 'Fat metabolism']},
+                {'name': 'L-Theanine', 'benefits': ['Focus', 'Calm energy', 'Mental clarity']},
+                {'name': 'Turmeric/Curcumin', 'benefits': ['Joint health', 'Anti-inflammation']},
+                {'name': 'Beta-Glucans', 'benefits': ['Immune support', 'Recovery']},
+                {'name': 'Green Tea Extract', 'benefits': ['Metabolism', 'Energy', 'Antioxidants']}
+            ]
+        }
+
+        try:
+            # Map activities to supplement categories
+            activity_category_map = {
+                'strength_training': ['performance', 'recovery'],
+                'cardio': ['performance', 'wellness'],
+                'yoga': ['wellness', 'specific'],
+                'hiit': ['performance', 'recovery'],
+                'flexibility': ['recovery', 'specific'],
+                'meditation': ['wellness'],
+                'sports': ['performance', 'recovery', 'specific']
+            }
+
+            # Get relevant categories based on activities and tags
+            relevant_categories = set()
+            
+            # Add categories from activities
+            for activity in activities:
+                activity_type = activity['label'].lower().replace(' ', '_')
+                if activity_type in activity_category_map:
+                    relevant_categories.update(activity_category_map[activity_type])
+
+            # Add categories based on tags
+            tag_category_map = {
+                'strength': ['performance', 'recovery'],
+                'endurance': ['performance', 'wellness'],
+                'flexibility': ['recovery', 'specific'],
+                'mental': ['wellness', 'specific'],
+                'recovery': ['recovery', 'wellness']
+            }
+            
+            for tag in tags:
+                tag_lower = tag.lower()
+                for key, categories in tag_category_map.items():
+                    if key in tag_lower:
+                        relevant_categories.update(categories)
+
+            # Ensure we have at least one category
+            if not relevant_categories:
+                relevant_categories = {'wellness'}
+
+            # Get random supplements from relevant categories
+            import random
+            recommendations = []
+            
+            # Try to get supplements from each relevant category
+            for category in relevant_categories:
+                category_supplements = SUPPLEMENT_DATABASE.get(category, [])
+                if category_supplements:
+                    # Get 1-2 random supplements from each relevant category
+                    num_to_select = random.randint(1, 2)
+                    selected = random.sample(category_supplements, min(num_to_select, len(category_supplements)))
+                    recommendations.extend(selected)
+
+            # Shuffle and limit to 4 unique supplements
+            random.shuffle(recommendations)
+            unique_recommendations = []
+            seen_names = set()
+            
+            for supp in recommendations:
+                if supp['name'] not in seen_names and len(unique_recommendations) < 4:
+                    seen_names.add(supp['name'])
+                    unique_recommendations.append(supp)
+
+            return unique_recommendations
+
+        except Exception as e:
+            logger.error(f"Error generating supplement recommendations: {str(e)}")
+            return [] 
