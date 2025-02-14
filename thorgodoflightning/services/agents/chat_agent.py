@@ -21,13 +21,12 @@ class ChatAgent(BaseAgent):
         return all(field in input_data for field in required_fields)
         
     async def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Process the chat message and return response"""
+        """Process the chat message and return AI response"""
         try:
             if not self.validate_input(input_data):
                 raise ValueError("Missing required fields")
                 
             content = input_data['content']
-            sender_id = input_data.get('senderId', 'anonymous')  # Get sender ID from request
             
             # Check if this is a video request
             if self._is_video_request(content):
@@ -54,32 +53,18 @@ class ChatAgent(BaseAgent):
                 )
                 response_text = chat_response.choices[0].message.content
             
-            # Store messages in Firestore
-            messages_ref = self.db_service.db.collection('messages')
-            
-            # Store user message
-            messages_ref.document().set({
-                'content': content,
-                'type': 'text',
-                'session_id': input_data['session_id'],
-                'role': 'user',
-                'sequence': input_data.get('sequence_number', 0),
-                'timestamp': time.time(),
-                'senderId': sender_id  # Use actual user ID
-            })
-            
-            # Store assistant message
+            # Store only the AI response
             assistant_message = {
                 'content': response_text,
                 'type': 'text',
                 'session_id': input_data['session_id'],
                 'role': 'assistant',
-                'sequence': input_data.get('sequence_number', 0) + 1,
+                'sequence': input_data.get('sequence_number', 0),
                 'timestamp': time.time(),
-                'senderId': 'AI'  # Keep AI as sender for assistant messages
+                'senderId': 'AI'
             }
             
-            messages_ref.document().set(assistant_message)
+            self.db_service.db.collection('messages').document().set(assistant_message)
             
             return {
                 'success': True,
