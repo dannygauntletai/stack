@@ -27,11 +27,11 @@ struct MainTabView: View {
                 }
                 .tag(2)
             
-            // Replace the Text view with LeaderboardView
-            LeaderboardView()
+            // Replace the Text view with ChatView
+            ChatView()
                 .tabItem {
-                    Image(systemName: selectedTab == 3 ? "trophy.fill" : "trophy")
-                    Text("Leaderboard")
+                    Image(systemName: "message.fill") // Use an appropriate SF Symbol
+                    Text("Chat")
                 }
                 .tag(3)
             

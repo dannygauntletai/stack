@@ -10,7 +10,7 @@ enum AppEnvironment {
             print("Found environment in Info.plist: \(environment)")
             return environment
         } else {
-            print("No environment found in Info.plist, defaulting to production")
+            print("No environment found in Info.plist")
             return "debug" // Default to production
         }
     }()

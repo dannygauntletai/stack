@@ -1,0 +1,80 @@
+---
+description: Standards for preventing duplicate files and logic in Swift projects.
+globs: .swift
+---
+# File Deduplication Rule
+
+Standards for preventing duplicate files and logic in Swift projects.
+
+<rule>
+name: file_dedupe
+description: Prevents creation of duplicate files and redundant logic in Swift projects
+filters:
+  # Match Swift files
+  - type: file_extension
+    pattern: "\\.swift$"
+  # Match file creation events
+  - type: event
+    pattern: "file_create"
+  # Match file modification events
+  - type: event
+    pattern: "file_modify"
+
+actions:
+  - type: suggest
+    message: |
+      Before creating a new Swift file or adding new logic:
+
+      1. File Creation Checklist:
+         - Search entire project for similar filenames
+         - Check corresponding feature directories
+         - Review similar functionality in related modules
+         - Consider extending existing types instead of creating new ones
+
+      2. Common Locations to Check:
+         ```
+         PROJECT_ROOT/
+         ├── Features/
+         │   ├── ComponentName/
+         │   │   ├── Views/
+         │   │   ├── ViewModels/
+         │   │   └── Models/
+         ├── Core/
+         ├── UI/
+         │   ├── Components/
+         │   └── Shared/
+         └── Resources/
+         ```
+
+      3. Code Reuse Guidelines:
+         - Use protocol extensions for shared behavior
+         - Create generic components for repeated UI patterns
+         - Utilize base classes/protocols for common functionality
+         - Consider creating a shared utility instead of duplicating logic
+
+      4. Red Flags for Duplication:
+         - Similar naming patterns (UserView vs UserViewController)
+         - Comparable functionality in different features
+         - Repeated UI components with slight variations
+         - Similar data processing logic
+
+examples:
+  - input: |
+      # Bad: Creating duplicate functionality
+      struct UserProfileView { }  // When UserView already exists
+      struct CustomButton { }     // When SharedButton exists
+      
+      # Good: Extending existing components
+      extension UserView {
+          // Add new functionality here
+      }
+      
+      extension SharedButton {
+          // Add new style variant here
+      }
+    output: "Properly reused existing components"
+
+metadata:
+  priority: high
+  version: 1.0
+</rule>
