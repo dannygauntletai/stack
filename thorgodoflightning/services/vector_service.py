@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 from openai import OpenAI
 import json
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -170,4 +171,57 @@ class VectorService:
             } for match in results.matches]
         except Exception as e:
             logger.error(f"Error searching vectors: {str(e)}", exc_info=True)
+            raise
+
+    @classmethod
+    async def search_k_similar(cls, query: str, limit: int = 3) -> List[Dict]:
+        """Search for similar videos using multiple LLM-generated queries"""
+        if not cls._instance:
+            cls.initialize()
+            
+        try:
+            # Generate multiple search queries using LLM
+            client = OpenAI(api_key=Config.OPENAI_API_KEY)
+            response = client.chat.completions.create(
+                model="gpt-4-turbo-preview",
+                messages=[
+                    {"role": "system", "content": "Generate 5 different search queries that capture different aspects of the user's video request. Make each query specific and focused on different aspects. Return only the queries, one per line."},
+                    {"role": "user", "content": query}
+                ],
+                temperature=0.7
+            )
+            
+            # Split queries into list
+            search_queries = response.choices[0].message.content.strip().split('\n')
+            print(f"🔍 Generated queries: {search_queries}")
+            
+            # Search with each query
+            search_tasks = [cls.search_similar(q, limit=limit) for q in search_queries]
+            all_results = await asyncio.gather(*search_tasks)
+            
+            # Combine and deduplicate results
+            seen_ids = set()
+            unique_results = []
+            
+            # Flatten and deduplicate while keeping highest scores
+            for results in all_results:
+                for result in results:
+                    video_id = result['id']
+                    if video_id not in seen_ids:
+                        seen_ids.add(video_id)
+                        unique_results.append(result)
+                    else:
+                        # If we've seen this ID, update if new score is higher
+                        existing_idx = next(i for i, r in enumerate(unique_results) if r['id'] == video_id)
+                        if result['score'] > unique_results[existing_idx]['score']:
+                            unique_results[existing_idx] = result
+            
+            # Sort by score and limit results
+            final_results = sorted(unique_results, key=lambda x: x['score'], reverse=True)[:limit]
+            print(f"✨ Found {len(final_results)} unique videos")
+            
+            return final_results
+            
+        except Exception as e:
+            logger.error(f"Error in search_k_similar: {str(e)}", exc_info=True)
             raise
