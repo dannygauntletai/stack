@@ -5,6 +5,7 @@ from openai import OpenAI
 from firebase_admin import firestore
 from services.db_service import DatabaseService
 from services.agents.base_agent import BaseAgent
+from services.vector_service import VectorService
 from config import Config
 import logging
 import uuid
@@ -151,5 +152,58 @@ class ResearchAgent(BaseAgent):
         firebase_report['timestamp'] = firestore.SERVER_TIMESTAMP
         report_ref = self.db_service.db.collection('reports').document()
         report_ref.set(firebase_report)
+
+        # Create text representation for vectorization
+        report_text = f"""
+        Product: {report['productTitle']}
+        Summary: {report['research']['summary']}
+        Key Points: {' '.join(report['research']['keyPoints'])}
+        Pros: {' '.join(report['research']['pros'])}
+        Cons: {' '.join(report['research']['cons'])}
+        """
+
+        try:
+            # Debug logging
+            logger.info("Vectorizing report:")
+            logger.info(f"Report ID: {report['id']}")
+            logger.info(f"Report Text: {report_text}")
+            
+            metadata = {
+                'id': report['id'],
+                'productId': report['productId'],
+                'productTitle': report['productTitle'],
+                'productUrl': report['productUrl'],
+                'summary': report['research']['summary'],
+                'timestamp': report['timestamp']
+            }
+            logger.info(f"Metadata: {json.dumps(metadata)}")
+
+            # Get embedding from OpenAI
+            embedding_response = self.openai_client.embeddings.create(
+                model="text-embedding-3-small",
+                input=report_text
+            )
+            
+            vector_data = {
+                'id': report['id'], 
+                'vector': embedding_response.data[0].embedding,
+                'metadata': metadata
+            }
+            
+            logger.info(f"Vector dimensions: {len(vector_data['vector'])}")
+            
+            # Store in Pinecone with reports-metadata namespace
+            await VectorService.upsert_vectors(
+                vectors=[(
+                    vector_data['id'],
+                    vector_data['vector'],
+                    vector_data['metadata']
+                )],
+                namespace="report-metadata"
+            )
+            logger.info("Successfully vectorized and stored report")
+            
+        except Exception as e:
+            logger.error(f"Error vectorizing report: {str(e)}", exc_info=True)
         
         return report  # Return the Unix timestamp version 

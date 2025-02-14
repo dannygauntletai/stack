@@ -224,3 +224,21 @@ class VectorService:
         except Exception as e:
             logger.error(f"Error in search_k_similar: {str(e)}", exc_info=True)
             raise
+
+    @classmethod
+    async def upsert_vectors(cls, vectors: List[tuple], namespace: str):
+        """Upsert vectors to Pinecone index with specified namespace"""
+        if not cls._instance:
+            cls.initialize()
+            
+        try:
+            # Vectors should be in format: [(id, vector, metadata)]
+            cls._instance.upsert(
+                vectors=vectors,
+                namespace=namespace
+            )
+            logger.info(f"Successfully upserted {len(vectors)} vectors to namespace: {namespace}")
+            
+        except Exception as e:
+            logger.error(f"Error upserting vectors: {str(e)}", exc_info=True)
+            raise
