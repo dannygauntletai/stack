@@ -31,6 +31,10 @@ struct ChatMessage: Identifiable, Equatable {
         return formatter.string(from: timestamp)
     }
     
+    var isRecommendationMessage: Bool {
+        return !videoIds.isEmpty && text?.contains("Here are some relevant videos") == true
+    }
+    
     init(document: QueryDocumentSnapshot, currentUserId: String) {
         let data = document.data()
         
