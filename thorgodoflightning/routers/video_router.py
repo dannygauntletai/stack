@@ -128,12 +128,26 @@ async def analyze_video(request: Request, db_service: DBServiceDep) -> Dict:
             score, reasoning = await HealthService.analyze_health_impact(video_analysis)
             logger.info(f"[{request_id}] Health impact analysis completed")
             
-            # Update results
-            await db_service.update_video_status(video_id, 'completed', {
-                'healthImpactScore': score,
-                'healthAnalysis': reasoning
-            })
-            logger.info(f"[{request_id}] Updated video {video_id} with analysis results")
+            # Vectorize the video content
+            try:
+                vector_data = await VectorService.vectorize_video({
+                    'id': video_id,
+                    'title': video_data.get('title'),
+                    'content_categories': video_analysis['content_categories'],
+                    'healthAnalysis': reasoning,
+                    'healthImpactScore': score
+                })
+                
+                # Update vector metadata in video document
+                await db_service.update_video_status(video_id, 'completed', {
+                    'healthImpactScore': score,
+                    'healthAnalysis': reasoning,
+                    'vectorId': vector_data['id'],
+                    'vectorMetadata': vector_data['metadata']
+                })
+            except Exception as e:
+                logger.error(f"Vectorization failed: {str(e)}", exc_info=True)
+                # Continue with response even if vectorization fails
 
         except Exception as e:
             logger.error(f"[{request_id}] Analysis failed: {str(e)}", exc_info=True)
@@ -310,8 +324,8 @@ async def search_videos(
 
 @router.get("/recommendations")
 async def get_recommendations(
-    recommendation_service: RecommendationDep,
     user_id: str,
+    recommendation_service: RecommendationDep,
     count: Optional[int] = 10,
     graph_weight: Optional[float] = 0.7
 ) -> Dict:
@@ -329,4 +343,34 @@ async def get_recommendations(
         }
     except Exception as e:
         logger.error(f"Error getting recommendations: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/search/text")
+async def search_videos_by_text(
+    query: str,
+    db_service: DBServiceDep,
+    limit: int = 10
+) -> Dict:
+    """Search videos using natural language query"""
+    try:
+        # Search vectors in Pinecone
+        vector_results = await VectorService.search_similar(query, limit)
+        
+        # Get full video documents
+        video_ids = [result['id'] for result in vector_results]
+        videos = await db_service.get_videos_by_ids(video_ids)
+        
+        # Map scores to videos
+        score_map = {r['id']: r['score'] for r in vector_results}
+        for video in videos:
+            video['similarity_score'] = score_map.get(video['id'], 0)
+        
+        return {
+            'success': True,
+            'query': query,
+            'videos': sorted(videos, key=lambda x: x['similarity_score'], reverse=True),
+            'total': len(videos)
+        }
+    except Exception as e:
+        logger.error(f"Error in text search: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) 
