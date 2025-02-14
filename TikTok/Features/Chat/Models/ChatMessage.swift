@@ -9,6 +9,7 @@ struct ChatMessage: Identifiable, Equatable {
     let timestamp: Date
     let senderId: String
     let sequence: Int
+    let videoIds: [String]  // This is now populated by ChatViewModel
     
     var timestampString: String {
         let formatter = DateFormatter()
@@ -40,10 +41,11 @@ struct ChatMessage: Identifiable, Equatable {
         self.timestamp = (data["timestamp"] as? Timestamp)?.dateValue() ?? Date()
         self.isFromCurrentUser = currentUserId == self.senderId
         self.sequence = data["sequence"] as? Int ?? 0
+        self.videoIds = []  // Default to empty array
     }
     
     // Add initializer for previews
-    init(id: String, text: String?, imageURL: String?, isFromCurrentUser: Bool, timestamp: Date, senderId: String, sequence: Int) {
+    init(id: String, text: String?, imageURL: String?, isFromCurrentUser: Bool, timestamp: Date, senderId: String, sequence: Int, videoIds: [String] = []) {
         self.id = id
         self.text = text
         self.imageURL = imageURL
@@ -51,5 +53,6 @@ struct ChatMessage: Identifiable, Equatable {
         self.timestamp = timestamp
         self.senderId = senderId
         self.sequence = sequence
+        self.videoIds = videoIds
     }
 } 

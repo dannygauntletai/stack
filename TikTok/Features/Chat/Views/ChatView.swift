@@ -14,7 +14,7 @@ struct ChatView: View {
                     ScrollView {
                         LazyVStack(spacing: 4) {
                             ForEach(viewModel.messages) { message in
-                                ChatMessageBubble(message: message)
+                                MessageBubble(message: message)
                                     .id(message.id)
                             }
                         }
@@ -59,6 +59,7 @@ struct ChatView: View {
             }
         }
         .onAppear {
+            print("💬 ChatView appeared, message count: \(viewModel.messages.count)")
             viewModel.startListeningToMessages()
         }
     }
@@ -70,48 +71,6 @@ struct ChatView: View {
         Task {
             await viewModel.sendMessage(text)
         }
-    }
-}
-
-struct ChatMessageBubble: View {
-    let message: ChatMessage
-    
-    var body: some View {
-        HStack {
-            // Add debug print
-            let _ = print("Rendering message: \(message.text ?? "no text")")
-            
-            if message.isFromCurrentUser {
-                Spacer()
-            }
-            
-            VStack(alignment: message.isFromCurrentUser ? .trailing : .leading) {
-                if let text = message.text {
-                    Text(text)
-                        .padding(12)
-                        .background(message.isFromCurrentUser ? Color.blue : Color.gray.opacity(0.3))
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
-                
-                if let imageURL = message.imageURL {
-                    AsyncImage(url: URL(string: imageURL)) { image in
-                        image
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 200)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                    } placeholder: {
-                        ProgressView()
-                    }
-                }
-            }
-            
-            if !message.isFromCurrentUser {
-                Spacer()
-            }
-        }
-        .padding(.vertical, 2)
     }
 }
 

@@ -3,6 +3,7 @@ import SwiftUI
 struct MainTabView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
     @State private var selectedTab = 0
+    @State private var videoToPlay: String?
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -45,23 +46,42 @@ struct MainTabView: View {
         .tint(.white)
         .background(Color.black)
         .onAppear {
-            // Set white color for unselected items
-            UITabBar.appearance().unselectedItemTintColor = .white.withAlphaComponent(0.5)
-            UITabBar.appearance().tintColor = .white
-            
-            // Configure tab bar appearance
-            let tabBarAppearance = UITabBarAppearance()
-            tabBarAppearance.configureWithTransparentBackground()
-            tabBarAppearance.backgroundColor = .black
-            
-            // Set colors for text and icons
-            tabBarAppearance.stackedLayoutAppearance.normal.iconColor = .white.withAlphaComponent(0.5)
-            tabBarAppearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor.white.withAlphaComponent(0.5)]
-            tabBarAppearance.stackedLayoutAppearance.selected.iconColor = .white
-            tabBarAppearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor.white]
-            
-            UITabBar.appearance().standardAppearance = tabBarAppearance
-            UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
+            setupAppearance()
+            setupNotifications()
+        }
+    }
+    
+    private func setupAppearance() {
+        // Set white color for unselected items
+        UITabBar.appearance().unselectedItemTintColor = .white.withAlphaComponent(0.5)
+        UITabBar.appearance().tintColor = .white
+        
+        // Configure tab bar appearance
+        let tabBarAppearance = UITabBarAppearance()
+        tabBarAppearance.configureWithTransparentBackground()
+        tabBarAppearance.backgroundColor = .black
+        
+        // Set colors for text and icons
+        tabBarAppearance.stackedLayoutAppearance.normal.iconColor = .white.withAlphaComponent(0.5)
+        tabBarAppearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor.white.withAlphaComponent(0.5)]
+        tabBarAppearance.stackedLayoutAppearance.selected.iconColor = .white
+        tabBarAppearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor.white]
+        
+        UITabBar.appearance().standardAppearance = tabBarAppearance
+        UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
+    }
+    
+    // Add notification handling
+    private func setupNotifications() {
+        NotificationCenter.default.addObserver(
+            forName: .openVideo,
+            object: nil,
+            queue: .main
+        ) { notification in
+            if let videoId = notification.userInfo?["videoId"] as? String {
+                videoToPlay = videoId
+                selectedTab = 0  // Switch to home tab
+            }
         }
     }
 }

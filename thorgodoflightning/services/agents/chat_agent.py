@@ -63,6 +63,8 @@ class ChatAgent(BaseAgent):
                 'timestamp': time.time(),
                 'senderId': 'AI'
             }
+
+            print("assistant_message", assistant_message)
             
             self.db_service.db.collection('messages').document().set(assistant_message)
             
