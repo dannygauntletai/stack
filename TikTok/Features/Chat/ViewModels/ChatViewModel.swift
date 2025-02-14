@@ -73,13 +73,27 @@ class ChatViewModel: ObservableObject {
         guard !text.isEmpty else { return }
         
         do {
-            // Prepare message data
-            let messageData: [String: Any] = [
+            // First store user's message directly in Firestore
+            let userMessage: [String: Any] = [
                 "content": text.trimmingCharacters(in: .whitespacesAndNewlines),
                 "type": "text",
                 "session_id": sessionId,
-                "sequence_number": currentSequence,
+                "role": "user",
+                "sequence": currentSequence,
+                "timestamp": FieldValue.serverTimestamp(),
                 "senderId": Auth.auth().currentUser?.uid ?? "anonymous"
+            ]
+            
+            try await Firestore.firestore()
+                .collection("messages")
+                .addDocument(data: userMessage)
+            
+            // Then get AI response
+            let requestData: [String: Any] = [
+                "content": text.trimmingCharacters(in: .whitespacesAndNewlines),
+                "type": "text",
+                "session_id": sessionId,
+                "sequence_number": currentSequence + 1  // Next sequence for AI response
             ]
             
             // Create URL request using AppEnvironment
@@ -91,10 +105,10 @@ class ChatViewModel: ObservableObject {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: messageData)
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestData)
             
             // Send request
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
@@ -102,8 +116,8 @@ class ChatViewModel: ObservableObject {
                 return
             }
             
-            // Increment sequence number after successful send
-            currentSequence += 2  // Increment by 2 to account for both user and AI messages
+            // Increment sequence number after both messages are handled
+            currentSequence += 2
             
         } catch {
             print("Error sending message: \(error.localizedDescription)")
