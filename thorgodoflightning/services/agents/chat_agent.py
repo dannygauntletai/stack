@@ -7,6 +7,7 @@ from config import Config
 import logging
 import re
 import time
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -21,39 +22,24 @@ class ChatAgent(BaseAgent):
         return all(field in input_data for field in required_fields)
         
     async def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Process the chat message and return AI response"""
+        """Process the chat message using REACT pattern: Reason + Act"""
         try:
             if not self.validate_input(input_data):
                 raise ValueError("Missing required fields")
                 
             content = input_data['content']
             
-            # Check if this is a video request
-            if self._is_video_request(content):
-                # Use new search function
-                vector_results = await VectorService.search_k_similar(content, limit=1)
-                video_ids = [result['id'] for result in vector_results]
-                videos = await self.db_service.get_videos_by_ids(video_ids)
-                
-                # Format video response
-                response_text = "Here are some relevant videos:\n"
-                for video in videos:
-                    response_text += f"{video.get('caption', 'Untitled')}\n"
-                    response_text += f"  Video ID: {video['id']}\n\n"
-            else:
-                # Get chat response
-                chat_response = self.openai_client.chat.completions.create(
-                    model="gpt-4-turbo-preview",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful health and wellness assistant."},
-                        {"role": "user", "content": content}
-                    ],
-                    temperature=0.7,
-                    max_tokens=500
-                )
-                response_text = chat_response.choices[0].message.content
+            # First, analyze the user's request using LLM
+            analysis = await self._analyze_request(content)
+            print(f"🤔 Request analysis: {analysis}")
             
-            # Store only the AI response
+            # Based on analysis, determine action and execute
+            if analysis['action'] == 'recommend_videos':
+                response_text = await self._handle_video_recommendation(analysis['parsed_query'])
+            else:
+                response_text = await self._handle_general_chat(content)
+            
+            # Store response
             assistant_message = {
                 'content': response_text,
                 'type': 'text',
@@ -63,8 +49,6 @@ class ChatAgent(BaseAgent):
                 'timestamp': time.time(),
                 'senderId': 'AI'
             }
-
-            print("assistant_message", assistant_message)
             
             self.db_service.db.collection('messages').document().set(assistant_message)
             
@@ -77,6 +61,69 @@ class ChatAgent(BaseAgent):
             logger.error(f"Error processing chat: {str(e)}", exc_info=True)
             raise
             
+    async def _analyze_request(self, content: str) -> Dict:
+        """Analyze user request using LLM to determine intent and extract relevant information"""
+        try:
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4-turbo-preview",
+                messages=[
+                    {"role": "system", "content": """Analyze the user's request and determine:
+                    1. If they're asking for video recommendations
+                    2. Extract specific requirements or preferences
+                    3. Identify any constraints or filters
+                    
+                    Return a JSON with:
+                    {
+                        "action": "recommend_videos" or "general_chat",
+                        "parsed_query": extracted search terms,
+                        "requirements": {
+                            "type": workout type if specified,
+                            "difficulty": level if mentioned,
+                            "duration": if specified,
+                            "equipment": if mentioned,
+                            "focus_area": specific body parts or skills
+                        }
+                    }"""},
+                    {"role": "user", "content": content}
+                ],
+                response_format={ "type": "json_object" },
+                temperature=0.7
+            )
+            
+            return json.loads(response.choices[0].message.content)
+            
+        except Exception as e:
+            logger.error(f"Error analyzing request: {str(e)}")
+            return {"action": "general_chat", "parsed_query": content}
+            
+    async def _handle_video_recommendation(self, query: str) -> str:
+        """Handle video recommendation requests"""
+        # Use enhanced search with parsed query
+        vector_results = await VectorService.search_k_similar(query, limit=1)
+        video_ids = [result['id'] for result in vector_results]
+        videos = await self.db_service.get_videos_by_ids(video_ids)
+        
+        # Format video response
+        response_text = "Here are some relevant videos:\n"
+        for video in videos:
+            response_text += f"{video.get('caption', 'Untitled')}\n"
+            response_text += f"  Video ID: {video['id']}\n\n"
+            
+        return response_text
+        
+    async def _handle_general_chat(self, content: str) -> str:
+        """Handle general chat interactions"""
+        chat_response = self.openai_client.chat.completions.create(
+            model="gpt-4-turbo-preview",
+            messages=[
+                {"role": "system", "content": "You are a helpful health and wellness assistant."},
+                {"role": "user", "content": content}
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        return chat_response.choices[0].message.content
+
     def _is_video_request(self, content: str) -> bool:
         """Check if the user is asking for video recommendations"""
         video_keywords = [
