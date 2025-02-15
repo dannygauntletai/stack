@@ -9,6 +9,10 @@ import re
 import time
 import json
 import pyshorteners
+from langchain.callbacks.manager import tracing_v2_enabled
+import os
+from langsmith import traceable
+from langsmith.run_helpers import get_run_tree_context
 
 logger = logging.getLogger(__name__)
 
@@ -18,21 +22,67 @@ class ChatAgent(BaseAgent):
         self.openai_client = OpenAI(api_key=Config.OPENAI_API_KEY)
         self.url_shortener = pyshorteners.Shortener()
         
+        # Explicitly set LangSmith environment variables
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        os.environ["LANGCHAIN_PROJECT"] = Config.LANGSMITH_PROJECT
+        
+        # Log LangSmith configuration
+        logger.info(f"LangSmith Configuration:")
+        logger.info(f"LANGCHAIN_API_KEY set: {bool(os.getenv('LANGCHAIN_API_KEY'))}")
+        logger.info(f"LANGCHAIN_TRACING_V2: {os.getenv('LANGCHAIN_TRACING_V2')}")
+        logger.info(f"LANGSMITH_PROJECT: {os.getenv('LANGSMITH_PROJECT')}")
+        logger.info(f"LANGSMITH_ENDPOINT: {os.getenv('LANGSMITH_ENDPOINT')}")
+        
     def validate_input(self, input_data: Dict[str, Any]) -> bool:
         """Validate the input data"""
         required_fields = ['content', 'type', 'session_id']
         return all(field in input_data for field in required_fields)
         
+    @traceable(project_name="thorgodoflightning")
     async def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Process the chat message using REACT pattern: Reason + Act"""
+        """Process a chat message"""
         try:
             if not self.validate_input(input_data):
-                raise ValueError("Missing required fields")
-                
-            content = input_data['content']
+                raise ValueError("Invalid chat input")
             
+            message_text = input_data['content']
+            conversation_id = input_data.get('session_id')
+            user_id = input_data.get('userId')
+            
+            # Start vector search with its own trace
+            video_ids = await self._search_videos(message_text)
+            
+            # Generate response with context and session data
+            response = await self._generate_response(message_text, video_ids, input_data)
+            
+            return response
+                
+        except Exception as e:
+            logger.error(f"Error in process with tracing: {str(e)}", exc_info=True)
+            raise
+
+    @traceable(project_name="thorgodoflightning")
+    async def _search_videos(self, query: str) -> List[str]:
+        """Search for relevant videos"""
+        try:
+            # Use enhanced search with parsed query and video namespace
+            vector_results = await VectorService.search_k_similar(
+                query,
+                limit=1,
+                namespace="video-metadata"  # Specify the video namespace
+            )
+            video_ids = [result['id'] for result in vector_results]
+            return video_ids
+        except Exception as e:
+            logger.error(f"Error in search with tracing: {str(e)}", exc_info=True)
+            raise
+
+    @traceable(project_name="thorgodoflightning")
+    async def _generate_response(self, message: str, video_ids: List[str], session_data: Dict[str, Any]) -> Dict[str, str]:
+        """Generate AI response"""
+        try:
             # First, analyze the user's request using LLM
-            analysis = await self._analyze_request(content)
+            analysis = await self._analyze_request(message)
             print(f"🤔 Request analysis: {analysis}")
             
             # Based on analysis, determine action and execute
@@ -41,28 +91,46 @@ class ChatAgent(BaseAgent):
             elif analysis['action'] == 'report_query':
                 response_text = await self._handle_report_query(analysis['parsed_query'], analysis.get('requirements', {}))
             else:
-                response_text = await self._handle_general_chat(content)
+                response_text = await self._handle_general_chat(message)
             
             # Store response
             assistant_message = {
                 'content': response_text,
                 'type': 'text',
-                'session_id': input_data['session_id'],
+                'session_id': session_data['session_id'],
                 'role': 'assistant',
-                'sequence': input_data.get('sequence_number', 0),
+                'sequence': session_data.get('sequence_number', 0),
                 'timestamp': time.time(),
                 'senderId': 'AI'
             }
             
-            self.db_service.db.collection('messages').document().set(assistant_message)
+            # Save to database and get document reference
+            message_ref = self.db_service.db.collection('messages').document()
+            message_ref.set(assistant_message)
             
+            # Get trace ID once
+            trace_id = self.get_current_trace_id()
+            
+            # Return complete response structure with trace ID in two places
             return {
                 'success': True,
-                'message': assistant_message
+                'trace_id': trace_id,  # Add at top level
+                'message': {
+                    'id': message_ref.id,
+                    'text': response_text,
+                    'videoIds': video_ids,
+                    'isFromCurrentUser': False,
+                    'timestamp': time.time(),
+                    'senderId': 'ai',
+                    'feedback': {
+                        'status': 'pending',
+                        'trace_id': trace_id  # Keep in feedback object too
+                    }
+                }
             }
             
         except Exception as e:
-            logger.error(f"Error processing chat: {str(e)}", exc_info=True)
+            logger.error(f"Error in generate with tracing: {str(e)}", exc_info=True)
             raise
             
     async def _analyze_request(self, content: str) -> Dict:
@@ -311,3 +379,8 @@ class ChatAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Error shortening URL: {str(e)}")
             return url  # Return original URL if shortening fails 
+
+    def get_current_trace_id(self) -> str:
+        """Get the current trace ID from the LangSmith context"""
+        ctx = get_run_tree_context()
+        return ctx.id if ctx else None 

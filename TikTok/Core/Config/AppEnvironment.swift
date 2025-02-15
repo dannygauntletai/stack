@@ -11,7 +11,7 @@ enum AppEnvironment {
             return environment
         } else {
             print("No environment found in Info.plist")
-            return "production" // Default to production
+            return "debug" // Default to production
         }
     }()
     
