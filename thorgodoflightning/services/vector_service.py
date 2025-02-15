@@ -146,8 +146,8 @@ class VectorService:
             raise
 
     @classmethod
-    async def search_similar(cls, query: str, limit: int = 10) -> List[Dict]:
-        """Search for similar videos using vector similarity"""
+    async def search_similar(cls, query: str, limit: int = 10, namespace: str = "video-metadata") -> List[Dict]:
+        """Search for similar items using vector similarity"""
         if not cls._instance:
             cls.initialize()
             
@@ -155,11 +155,11 @@ class VectorService:
             # Generate query vector
             query_vector = await cls._generate_embeddings({'text': query})
             
-            # Search Pinecone
+            # Search Pinecone with namespace
             results = cls._instance.query(
                 vector=query_vector,
                 top_k=limit,
-                namespace="video-metadata",
+                namespace=namespace,
                 include_metadata=True
             )
             
@@ -173,7 +173,7 @@ class VectorService:
             raise
 
     @classmethod
-    async def search_k_similar(cls, query: str, limit: int = 3) -> List[Dict]:
+    async def search_k_similar(cls, query: str, limit: int = 3, namespace: str = "video-metadata") -> List[Dict]:
         """Search for similar videos using multiple LLM-generated queries"""
         if not cls._instance:
             cls.initialize()
@@ -195,7 +195,7 @@ class VectorService:
             print(f"🔍 Generated queries: {search_queries}")
             
             # Search with each query
-            search_tasks = [cls.search_similar(q, limit=limit) for q in search_queries]
+            search_tasks = [cls.search_similar(q, limit=limit, namespace=namespace) for q in search_queries]
             all_results = await asyncio.gather(*search_tasks)
             
             # Combine and deduplicate results
@@ -217,7 +217,7 @@ class VectorService:
             
             # Sort by score and limit results
             final_results = sorted(unique_results, key=lambda x: x['score'], reverse=True)[:limit]
-            print(f"✨ Found {len(final_results)} unique videos")
+            print(f"✨ Found {len(final_results)} unique items")
             
             return final_results
             

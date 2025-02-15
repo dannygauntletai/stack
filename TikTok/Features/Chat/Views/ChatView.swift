@@ -4,6 +4,7 @@ import PhotosUI
 
 struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
+    @StateObject private var feedViewModel = ShortFormFeedViewModel()
     @State private var messageText = ""
     @State private var selectedItems: [PhotosPickerItem] = []
     
@@ -16,6 +17,7 @@ struct ChatView: View {
                             ForEach(viewModel.messages) { message in
                                 MessageBubble(message: message)
                                     .id(message.id)
+                                    .environmentObject(feedViewModel)
                             }
                         }
                         .padding(.horizontal)
@@ -67,7 +69,10 @@ struct ChatView: View {
     private func sendMessage() {
         guard !messageText.isEmpty else { return }
         let text = messageText
-        messageText = ""
+        // Clear text immediately for better UX
+        DispatchQueue.main.async {
+            self.messageText = ""  // Clear the input
+        }
         Task {
             await viewModel.sendMessage(text)
         }

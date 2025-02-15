@@ -47,7 +47,6 @@ struct MainTabView: View {
         .background(Color.black)
         .onAppear {
             setupAppearance()
-            setupNotifications()
         }
     }
     
@@ -69,19 +68,5 @@ struct MainTabView: View {
         
         UITabBar.appearance().standardAppearance = tabBarAppearance
         UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
-    }
-    
-    // Add notification handling
-    private func setupNotifications() {
-        NotificationCenter.default.addObserver(
-            forName: .openVideo,
-            object: nil,
-            queue: .main
-        ) { notification in
-            if let videoId = notification.userInfo?["videoId"] as? String {
-                videoToPlay = videoId
-                selectedTab = 0  // Switch to home tab
-            }
-        }
     }
 }
