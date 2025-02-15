@@ -68,13 +68,11 @@ class ChatViewModel: ObservableObject {
         let newMessages = documents.compactMap { document -> ChatMessage? in
             let data = document.data()
             
-            // Get the raw content
+            // Get the raw content and feedback data
             guard let content = data["content"] as? String else { 
                 print("⚠️ No content found in message")
                 return nil 
             }
-            
-            print("📝 Raw message content: \(content)")
             
             // Parse video IDs and clean up text if present
             var cleanedText = content
@@ -92,8 +90,17 @@ class ChatViewModel: ObservableObject {
                         .components(separatedBy: .newlines)[0]
                     videoIds.append(id)
                 }
-                print("🎬 Extracted video IDs: \(videoIds)")
-                print("📋 Cleaned text: \(cleanedText)")
+            }
+            
+            // Extract feedback data including trace_id and run_id
+            print("📝 Raw message data: \(data)")  // Debug log
+            
+            // Get feedback data from the correct path
+            if let feedbackData = data["feedback"] as? [String: Any] {
+                if let runId = feedbackData["run_id"] as? String {
+                    print("🔍 Found run_id in feedback: \(runId)")
+                    ChatService.shared.setRunId(runId, for: document.documentID)
+                }
             }
             
             let message = ChatMessage(
@@ -104,15 +111,45 @@ class ChatViewModel: ObservableObject {
                 timestamp: Date(timeIntervalSince1970: data["timestamp"] as? Double ?? 0),
                 senderId: data["senderId"] as? String ?? "",
                 sequence: data["sequence"] as? Int ?? 0,
-                videoIds: videoIds
+                videoIds: videoIds,
+                feedback: (data["feedback"] as? [String: Any]).map { feedbackData in
+                    MessageFeedback(
+                        runId: feedbackData["run_id"] as? String,
+                        status: feedbackData["status"] as? String ?? "pending"
+                    )
+                }
             )
             
-            print("📱 Created message with \(message.videoIds.count) video IDs")
+            print("📱 Created message with run_id: \(message.feedback?.runId ?? "none")")
             return message
         }
         
         print("✨ Processed \(newMessages.count) messages")
         return newMessages
+    }
+    
+    private func storeAIResponse(_ responseData: [String: Any]) async throws {
+        guard let message = responseData["message"] as? [String: Any],
+              let text = message["text"] as? String,
+              let feedback = message["feedback"] as? [String: Any] else {
+            print("❌ Invalid AI response format")
+            return
+        }
+        
+        let messageData: [String: Any] = [
+            "content": text,
+            "type": "text",
+            "session_id": sessionId,
+            "role": "assistant",
+            "sequence": currentSequence + 1,
+            "timestamp": FieldValue.serverTimestamp(),
+            "senderId": "ai",
+            "feedback": feedback  // This includes the trace_id
+        ]
+        
+        try await Firestore.firestore()
+            .collection("messages")
+            .addDocument(data: messageData)
     }
     
     func sendMessage(_ text: String) async {
@@ -139,10 +176,9 @@ class ChatViewModel: ObservableObject {
                 "content": text.trimmingCharacters(in: .whitespacesAndNewlines),
                 "type": "text",
                 "session_id": sessionId,
-                "sequence_number": currentSequence + 1  // Next sequence for AI response
+                "sequence_number": currentSequence + 1
             ]
             
-            // Create URL request using AppEnvironment
             guard let url = URL(string: "\(AppEnvironment.baseURL)/agents/chat") else {
                 print("Invalid URL")
                 return
@@ -153,16 +189,10 @@ class ChatViewModel: ObservableObject {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: requestData)
             
-            // Send request
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, _) = try await URLSession.shared.data(for: request)
             
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                print("Error: Invalid response")
-                return
-            }
-            
-            // Increment sequence number after both messages are handled
+            // Backend handles storing the AI response
+            // Our Firestore listener will pick up the new message automatically
             currentSequence += 2
             
         } catch {

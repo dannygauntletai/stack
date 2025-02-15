@@ -11,8 +11,26 @@ struct MessageBubble: View {
     @State private var selectedVideo: Video?
     @State private var showFullScreenVideo = false
     @State private var isLoadingVideo = false
+    @State private var feedbackSubmitted = false
     
     private let videoCache = NSCache<NSString, NSURL>()
+    
+    // Colors for feedback buttons
+    private let inactiveColor = Color.gray.opacity(0.5)
+    private let activeColor = Color.blue
+    
+    // Add computed property to determine if feedback buttons should show
+    private var shouldShowFeedback: Bool {
+        // Debug prints
+        print("💭 Checking feedback for message: \(message.id)")
+        print("📱 Is from current user: \(message.isFromCurrentUser)")
+        print("🔍 Has run ID: \(message.feedback?.runId != nil)")
+        
+        // Only show feedback for AI messages (non-user messages)
+        if message.isFromCurrentUser { return false }
+        
+        return !ChatService.shared.hasFeedbackBeenSubmitted(for: message.id)
+    }
     
     func debugPrint(_ message: String) {
         print(message)
@@ -86,6 +104,22 @@ struct MessageBubble: View {
                     .padding(8)
                     .background(Color.gray.opacity(0.3))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                
+                // Add feedback buttons below AI messages
+                if shouldShowFeedback && !feedbackSubmitted {
+                    HStack(spacing: 20) {
+                        Button(action: submitPositiveFeedback) {
+                            Image(systemName: "hand.thumbsup.fill")
+                                .foregroundColor(inactiveColor)
+                        }
+                        
+                        Button(action: submitNegativeFeedback) {
+                            Image(systemName: "hand.thumbsdown.fill")
+                                .foregroundColor(inactiveColor)
+                        }
+                    }
+                    .padding(.top, 4)
                 }
             }
             
@@ -311,6 +345,57 @@ struct MessageBubble: View {
         
         print("Created video object with URL: \(videoUrl)")
         return video
+    }
+    
+    private func submitPositiveFeedback() {
+        guard let runId = message.feedback?.runId else { 
+            print("❌ No run ID found for message: \(message.id)")
+            return 
+        }
+        
+        print("✅ Submitting positive feedback for message: \(message.id)")
+        print("🔍 Using run ID: \(runId)")
+        
+        Task {
+            do {
+                let response = try await ChatService.shared.submitPositiveFeedback(
+                    messageId: message.id,
+                    runId: runId
+                )
+                
+                if response.success {
+                    ChatService.shared.markFeedbackSubmitted(for: message.id)
+                    print("✨ Successfully submitted positive feedback")
+                    await MainActor.run {
+                        feedbackSubmitted = true
+                    }
+                }
+            } catch {
+                print("❌ Error submitting positive feedback: \(error)")
+            }
+        }
+    }
+    
+    private func submitNegativeFeedback() {
+        guard let runId = message.feedback?.runId else { 
+            print("❌ No run ID found for message: \(message.id)")
+            return 
+        }
+        
+        Task {
+            do {
+                let response = try await ChatService.shared.submitNegativeFeedback(
+                    messageId: message.id,
+                    runId: runId
+                )
+                
+                if response.success {
+                    ChatService.shared.markFeedbackSubmitted(for: message.id)
+                }
+            } catch {
+                print("Error submitting negative feedback: \(error)")
+            }
+        }
     }
 }
 

@@ -13,32 +13,40 @@ from langchain.callbacks.manager import tracing_v2_enabled
 import os
 from langsmith import traceable
 from langsmith.run_helpers import get_run_tree_context
+from langsmith.wrappers import wrap_openai
+import langsmith as ls
+from langchain_core.tracers.langchain import wait_for_all_tracers
 
 logger = logging.getLogger(__name__)
 
 class ChatAgent(BaseAgent):
     def __init__(self, db_service: DatabaseService):
         self.db_service = db_service
-        self.openai_client = OpenAI(api_key=Config.OPENAI_API_KEY)
+        # Wrap OpenAI client for tracing
+        self.openai_client = wrap_openai(OpenAI(api_key=Config.OPENAI_API_KEY))
         self.url_shortener = pyshorteners.Shortener()
+        
+        # Set project and run names for chat agent
+        self.project_name = "thorgodoflightning"
+        self.run_name = "chat"
         
         # Explicitly set LangSmith environment variables
         os.environ["LANGCHAIN_TRACING_V2"] = "true"
-        os.environ["LANGCHAIN_PROJECT"] = Config.LANGSMITH_PROJECT
+        os.environ["LANGCHAIN_PROJECT"] = self.project_name
         
         # Log LangSmith configuration
-        logger.info(f"LangSmith Configuration:")
+        logger.info(f"Chat Agent LangSmith Configuration:")
+        logger.info(f"Project Name: {self.project_name}")
+        logger.info(f"Run Name: {self.run_name}")
         logger.info(f"LANGCHAIN_API_KEY set: {bool(os.getenv('LANGCHAIN_API_KEY'))}")
         logger.info(f"LANGCHAIN_TRACING_V2: {os.getenv('LANGCHAIN_TRACING_V2')}")
-        logger.info(f"LANGSMITH_PROJECT: {os.getenv('LANGSMITH_PROJECT')}")
-        logger.info(f"LANGSMITH_ENDPOINT: {os.getenv('LANGSMITH_ENDPOINT')}")
         
     def validate_input(self, input_data: Dict[str, Any]) -> bool:
         """Validate the input data"""
         required_fields = ['content', 'type', 'session_id']
         return all(field in input_data for field in required_fields)
         
-    @traceable(project_name="thorgodoflightning")
+    @traceable(project_name="thorgodoflightning", name="chat")
     async def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """Process a chat message"""
         try:
@@ -49,19 +57,68 @@ class ChatAgent(BaseAgent):
             conversation_id = input_data.get('session_id')
             user_id = input_data.get('userId')
             
+            # Get current trace context
+            run_tree = ls.get_current_run_tree()
+            logger.info(f"Current run tree: {run_tree}")
+            logger.info(f"Run tree type: {type(run_tree)}")
+            run_id = str(run_tree.id) if run_tree else None  # Convert UUID to string
+            
+            logger.info(f"Extracted run ID: {run_id}")
+            logger.info(f"Run ID type: {type(run_id)}")
+            
             # Start vector search with its own trace
             video_ids = await self._search_videos(message_text)
             
             # Generate response with context and session data
             response = await self._generate_response(message_text, video_ids, input_data)
             
-            return response
+            # Store in Firestore with trace ID
+            message_ref = self.db_service.db.collection('messages').document()
+            message_data = {
+                'content': response['message']['text'],
+                'type': 'text',
+                'session_id': conversation_id,
+                'role': 'assistant',
+                'sequence': input_data.get('sequence_number', 0),
+                'timestamp': time.time(),
+                'senderId': 'ai',
+                'feedback': {
+                    'status': 'pending',
+                    'run_id': run_id  # Use string UUID
+                }
+            }
+            
+            message_ref.set(message_data)  # Firebase Admin SDK's set() is already async
+            
+            # Wait for all traces to be submitted
+            wait_for_all_tracers()
+            
+            # Get the final run ID after traces are submitted
+            run_tree = ls.get_current_run_tree()
+            run_id = str(run_tree.id) if run_tree else None
+            logger.info(f"Final run ID after trace submission: {run_id}")
+            
+            return {
+                'success': True,
+                'message': {
+                    'id': message_ref.id,
+                    'text': response['message']['text'],
+                    'videoIds': response['message']['videoIds'],
+                    'isFromCurrentUser': False,
+                    'timestamp': time.time(),
+                    'senderId': 'ai',
+                    'feedback': {
+                        'status': 'pending',
+                        'run_id': run_id  # Use the final run ID
+                    }
+                }
+            }
                 
         except Exception as e:
             logger.error(f"Error in process with tracing: {str(e)}", exc_info=True)
             raise
 
-    @traceable(project_name="thorgodoflightning")
+    @traceable(project_name="thorgodoflightning", name="chat_search")
     async def _search_videos(self, query: str) -> List[str]:
         """Search for relevant videos"""
         try:
@@ -77,7 +134,7 @@ class ChatAgent(BaseAgent):
             logger.error(f"Error in search with tracing: {str(e)}", exc_info=True)
             raise
 
-    @traceable(project_name="thorgodoflightning")
+    @traceable(project_name="thorgodoflightning", name="chat_response")
     async def _generate_response(self, message: str, video_ids: List[str], session_data: Dict[str, Any]) -> Dict[str, str]:
         """Generate AI response"""
         try:
@@ -93,39 +150,12 @@ class ChatAgent(BaseAgent):
             else:
                 response_text = await self._handle_general_chat(message)
             
-            # Store response
-            assistant_message = {
-                'content': response_text,
-                'type': 'text',
-                'session_id': session_data['session_id'],
-                'role': 'assistant',
-                'sequence': session_data.get('sequence_number', 0),
-                'timestamp': time.time(),
-                'senderId': 'AI'
-            }
-            
-            # Save to database and get document reference
-            message_ref = self.db_service.db.collection('messages').document()
-            message_ref.set(assistant_message)
-            
-            # Get trace ID once
-            trace_id = self.get_current_trace_id()
-            
-            # Return complete response structure with trace ID in two places
+            # Return complete response structure
             return {
                 'success': True,
-                'trace_id': trace_id,  # Add at top level
                 'message': {
-                    'id': message_ref.id,
                     'text': response_text,
                     'videoIds': video_ids,
-                    'isFromCurrentUser': False,
-                    'timestamp': time.time(),
-                    'senderId': 'ai',
-                    'feedback': {
-                        'status': 'pending',
-                        'trace_id': trace_id  # Keep in feedback object too
-                    }
                 }
             }
             
