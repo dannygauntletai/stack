@@ -106,15 +106,6 @@ struct MessageBubble: View {
             debugPrint("👋 MessageBubble disappeared")
             videoThumbnails = []
         }
-        .overlay {
-            if isLoadingVideo {
-                ZStack {
-                    Color.black.opacity(0.5)
-                    ProgressView()
-                        .tint(.white)
-                }
-            }
-        }
         .fullScreenCover(isPresented: $showFullScreenVideo) {
             if let video = selectedVideo {
                 VideoPlayerView(video: video)
