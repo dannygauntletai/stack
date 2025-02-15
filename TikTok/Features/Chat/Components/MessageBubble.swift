@@ -7,6 +7,12 @@ struct MessageBubble: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.presentationMode) var presentationMode
     @State private var videoThumbnails: [(id: String, url: String)] = []
+    @EnvironmentObject private var feedViewModel: ShortFormFeedViewModel
+    @State private var selectedVideo: Video?
+    @State private var showFullScreenVideo = false
+    @State private var isLoadingVideo = false
+    
+    private let videoCache = NSCache<NSString, NSURL>()
     
     func debugPrint(_ message: String) {
         print(message)
@@ -24,7 +30,8 @@ struct MessageBubble: View {
                     .onAppear { debugPrint("🔍 Rendering message with \(message.videoIds.count) video IDs") }
                 
                 if let text = message.text {
-                    Text(text)
+                    Text(LocalizedStringKey(text))  // Use LocalizedStringKey to enable markdown
+                        .textSelection(.enabled)    // Allow text selection
                         .padding(12)
                         .background(message.isFromCurrentUser ? Color.blue : Color.gray.opacity(0.3))
                         .foregroundColor(.white)
@@ -52,14 +59,26 @@ struct MessageBubble: View {
                             Button(action: {
                                 handleVideoTap(videoId: video.id)
                             }) {
-                                AsyncImage(url: URL(string: video.url)) { image in
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
+                                ZStack {  // Add ZStack to overlay spinner on thumbnail
+                                    AsyncImage(url: URL(string: video.url)) { image in
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(width: 200, height: 300)
+                                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    } placeholder: {
+                                        ProgressView()
+                                    }
+                                    
+                                    if isLoadingVideo && selectedVideo?.id == video.id {  // Only show spinner for selected video
+                                        ZStack {
+                                            Color.black.opacity(0.5)
+                                            ProgressView()
+                                                .tint(.white)
+                                        }
                                         .frame(width: 200, height: 300)
                                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                                } placeholder: {
-                                    ProgressView()
+                                    }
                                 }
                             }
                         }
@@ -87,16 +106,101 @@ struct MessageBubble: View {
             debugPrint("👋 MessageBubble disappeared")
             videoThumbnails = []
         }
+        .overlay {
+            if isLoadingVideo {
+                ZStack {
+                    Color.black.opacity(0.5)
+                    ProgressView()
+                        .tint(.white)
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showFullScreenVideo) {
+            if let video = selectedVideo {
+                VideoPlayerView(video: video)
+                    .environmentObject(feedViewModel)
+                    .background(.clear)
+                    .preferredColorScheme(.dark)
+            }
+        }
     }
     
     private func handleVideoTap(videoId: String) {
         print("👆 Video tapped: \(videoId)")
-        NotificationCenter.default.post(
-            name: .openVideo,
-            object: nil,
-            userInfo: ["videoId": videoId]
-        )
+        isLoadingVideo = true
+        
+        Task {
+            do {
+                let videoDoc = try await Firestore.firestore()
+                    .collection("videos")
+                    .document(videoId)
+                    .getDocument()
+                
+                if let video = try await processVideoDocument(videoDoc) {
+                    // Cache the video before showing player
+                    if let cachedURL = try await cacheVideo(from: video.videoUrl) {
+                        await MainActor.run {
+                            selectedVideo = Video(
+                                id: video.id,
+                                videoUrl: cachedURL.absoluteString,
+                                caption: video.caption,
+                                createdAt: video.createdAt,
+                                userId: video.userId,
+                                author: video.author,
+                                likes: video.likes,
+                                comments: video.comments,
+                                shares: video.shares,
+                                thumbnailUrl: video.thumbnailUrl
+                            )
+                            isLoadingVideo = false
+                            showFullScreenVideo = true
+                        }
+                    }
+                }
+            } catch {
+                print("Error loading video: \(error)")
+                await MainActor.run {
+                    isLoadingVideo = false
+                }
+            }
+        }
+        
         presentationMode.wrappedValue.dismiss()
+    }
+    
+    private func cacheVideo(from urlString: String) async throws -> URL? {
+        guard let sourceURL = URL(string: urlString) else { return nil }
+        
+        // Check if already cached
+        if let cachedURL = videoCache.object(forKey: urlString as NSString) as URL? {
+            print("Using cached video: \(cachedURL)")
+            return cachedURL
+        }
+        
+        // Create local cache directory if needed
+        let fileManager = FileManager.default
+        let cacheDirectory = try fileManager.url(for: .cachesDirectory, 
+                                               in: .userDomainMask,
+                                               appropriateFor: nil,
+                                               create: true)
+        
+        let videoName = sourceURL.lastPathComponent
+        let cachedURL = cacheDirectory.appendingPathComponent(videoName)
+        
+        // Download and cache if not exists
+        if !fileManager.fileExists(atPath: cachedURL.path) {
+            print("Downloading video to cache: \(sourceURL)")
+            
+            let (downloadURL, _) = try await URLSession.shared.download(from: sourceURL)
+            try fileManager.moveItem(at: downloadURL, to: cachedURL)
+            
+            print("Video cached successfully: \(cachedURL)")
+        } else {
+            print("Using existing cached video: \(cachedURL)")
+        }
+        
+        videoCache.setObject(cachedURL as NSURL, forKey: urlString as NSString)
+        return cachedURL
     }
     
     private func loadVideoThumbnails() {
@@ -145,11 +249,78 @@ struct MessageBubble: View {
             }
         }
     }
-}
-
-// Notification name for video opening
-extension Notification.Name {
-    static let openVideo = Notification.Name("openVideo")
+    
+    // Add helper method to process video document (copy from ShortFormFeedViewModel)
+    private func processVideoDocument(_ document: DocumentSnapshot) async throws -> Video? {
+        let data = document.data() ?? [:]
+        
+        guard let id = document.documentID as String?,
+              let gsUrl = data["videoUrl"] as? String,
+              let caption = data["caption"] as? String,
+              let createdAt = (data["createdAt"] as? Timestamp)?.dateValue(),
+              let userId = data["userId"] as? String,
+              let likes = data["likes"] as? Int,
+              let comments = data["comments"] as? Int,
+              let shares = data["shares"] as? Int else {
+            print("Invalid video data for ID: \(document.documentID)")
+            return nil
+        }
+        
+        let thumbnailUrl = data["thumbnailUrl"] as? String
+        
+        // Fetch user data
+        let userDoc = try await Firestore.firestore()
+            .collection("users")
+            .document(userId)
+            .getDocument()
+        let userData = userDoc.data()
+        
+        let author = VideoAuthor(
+            id: userId,
+            username: userData?["username"] as? String ?? "Unknown User",
+            profileImageUrl: userData?["profileImageUrl"] as? String
+        )
+        
+        // Enhanced video URL handling
+        let videoUrl: String
+        if gsUrl.hasPrefix("gs://") {
+            print("Converting gs:// URL to HTTP URL: \(gsUrl)")
+            let storage = Storage.storage()
+            let storageRef = storage.reference(forURL: gsUrl)
+            
+            do {
+                let downloadURL = try await storageRef.downloadURL()
+                videoUrl = downloadURL.absoluteString
+                print("Successfully converted to download URL: \(videoUrl)")
+            } catch {
+                print("Error converting gs:// URL: \(error)")
+                throw error
+            }
+        } else if gsUrl.hasPrefix("http") {
+            videoUrl = gsUrl
+            print("Using direct HTTP URL: \(videoUrl)")
+        } else {
+            print("Invalid video URL format: \(gsUrl)")
+            throw VideoError.invalidVideoUrl
+        }
+        
+        // Create video object with the processed URL
+        let video = Video(
+            id: id,
+            videoUrl: videoUrl,
+            caption: caption,
+            createdAt: createdAt,
+            userId: userId,
+            author: author,
+            likes: likes,
+            comments: comments,
+            shares: shares,
+            thumbnailUrl: thumbnailUrl
+        )
+        
+        print("Created video object with URL: \(videoUrl)")
+        return video
+    }
 }
 
 #Preview {
