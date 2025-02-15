@@ -11,6 +11,7 @@ import logging
 import uuid
 import datetime
 import time
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,6 @@ class ResearchAgent(BaseAgent):
 
     async def _tavily_search(self, product: Dict) -> List[Dict]:
         """Perform Tavily search with comprehensive product info"""
-        # Build search query using all available product info
         search_terms = []
         
         if product.get('title'):
@@ -43,37 +43,64 @@ class ResearchAgent(BaseAgent):
         search_query = " ".join(search_terms)
         logger.debug(f"Search query: {search_query}")
         
-        async with aiohttp.ClientSession() as session:
+        # Create timeout for client session
+        timeout = aiohttp.ClientTimeout(total=30)  # 30 second timeout
+        
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             url = "https://api.tavily.com/search"
             
             headers = {
                 "content-type": "application/json",
-                "Authorization": f"Bearer {self.tavily_api_key}"  # Correct header format
+                "Authorization": f"Bearer {self.tavily_api_key}"
             }
             
             payload = {
                 "query": search_query,
-                "search_depth": "advanced",
+                "search_depth": "basic",  # Changed from advanced to basic
                 "include_answer": True,
                 "max_results": 5,
-                "search_type": "products",
-                "include_domains": ["amazon.com"],  # Focus on Amazon
+                "include_domains": ["amazon.com"],
                 "exclude_domains": ["pinterest.com", "facebook.com", "instagram.com"]
             }
             
-            try:
-                async with session.post(url, json=payload, headers=headers) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        logger.error(f"Tavily error: {error_text}")
-                        return []
+            max_retries = 3
+            retry_delay = 1  # seconds
+            
+            for attempt in range(max_retries):
+                try:
+                    async with session.post(url, json=payload, headers=headers) as response:
+                        if response.status == 502:
+                            error_text = await response.text()
+                            logger.error(f"Tavily 502 error (attempt {attempt + 1}/{max_retries}): {error_text}")
+                            logger.error(f"Request details: URL={url}, Query={search_query}")
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(retry_delay * (attempt + 1))
+                                continue
+                            return []
+                            
+                        if response.status != 200:
+                            error_text = await response.text()
+                            logger.error(f"Tavily error {response.status}: {error_text}")
+                            return []
+                            
+                        result = await response.json()
+                        return result.get('results', [])
                         
-                    result = await response.json()
-                    return result.get('results', [])
-                    
-            except Exception as e:
-                logger.error(f"Tavily request failed: {str(e)}")
-                return []
+                except asyncio.TimeoutError:
+                    logger.error(f"Tavily request timed out after {timeout.total} seconds (attempt {attempt + 1}/{max_retries})")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay * (attempt + 1))
+                        continue
+                    return []
+                        
+                except Exception as e:
+                    logger.error(f"Tavily request failed (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay * (attempt + 1))
+                        continue
+                    return []
+            
+            return []  # If all retries failed
 
     async def _generate_summary(self, product: Dict, search_results: List[Dict]) -> Dict:
         """Generate a summary using OpenAI"""
