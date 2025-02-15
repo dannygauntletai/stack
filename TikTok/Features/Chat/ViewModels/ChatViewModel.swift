@@ -9,7 +9,7 @@ import SwiftUI
 class ChatViewModel: ObservableObject {
     @Published private(set) var messages: [ChatMessage] = []
     private var listenerRegistration: ListenerRegistration?
-    let sessionId: String
+    @Published var sessionId: String
     private var currentSequence: Int = 0
     
     init() {
@@ -199,5 +199,48 @@ class ChatViewModel: ObservableObject {
         } catch {
             print("Error sending image: \(error.localizedDescription)")
         }
+    }
+    
+    // Add new methods for session management
+    func loadAllSessions() async -> [(id: String, timestamp: Date)]? {
+        do {
+            let db = Firestore.firestore()
+            let snapshot = try await db.collection("messages")
+                .order(by: "timestamp", descending: true)
+                .getDocuments()
+            
+            // Get unique session IDs with their timestamps
+            var sessionsDict: [String: Date] = [:]
+            for document in snapshot.documents {
+                if let sessionId = document.data()["session_id"] as? String,
+                   let timestamp = (document.data()["timestamp"] as? Timestamp)?.dateValue() {
+                    // Only keep the most recent timestamp for each session
+                    if sessionsDict[sessionId] == nil {
+                        sessionsDict[sessionId] = timestamp
+                    }
+                }
+            }
+            
+            // Convert to array and sort by timestamp
+            let sessions = sessionsDict.map { (id: $0.key, timestamp: $0.value) }
+                .sorted { $0.timestamp > $1.timestamp }
+            
+            return sessions
+            
+        } catch {
+            print("Error loading sessions: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    func switchToSession(_ newSessionId: String) {
+        // Clean up existing listener
+        listenerRegistration?.remove()
+        
+        // Update session ID
+        sessionId = newSessionId
+        
+        // Start listening to the new session
+        startListeningToMessages()
     }
 } 
