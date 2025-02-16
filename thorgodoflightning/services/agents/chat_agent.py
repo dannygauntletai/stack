@@ -295,11 +295,24 @@ class ChatAgent(BaseAgent):
                 response_parts.append("")  # Add blank line between products
             
             # If multiple products found, use LLM to recommend the best option
+
+            print(f"<THOR DEBUG> Found {len(unique_results)} unique results")
+
             if len(unique_results) > 1:
+                # Fix: Format the products correctly to match what _get_specific_recommendation expects
+                formatted_products = [{
+                    'metadata': {
+                        'productTitle': p['title'],
+                        'url': p['url'],
+                        'summary': p['summary']
+                    },
+                    'score': p['score']
+                } for p in unique_results]
+                
                 recommendation = await self._get_specific_recommendation(
-                    [{'metadata': p, 'score': p['score']} for p in unique_results],
+                    formatted_products,
                     requirements,
-                    original_query=query  # Pass the original query
+                    original_query=query
                 )
                 if recommendation:  # Only add if we got a recommendation
                     response_parts.append("\nBased on your needs, I recommend:")
@@ -362,6 +375,8 @@ class ChatAgent(BaseAgent):
                 ],
                 temperature=0.3  # Lower temperature for more focused responses
             )
+            print(response)
+            print(f"<THOR DEBUG> Recommendation response: {response.choices[0].message.content}")
             
             recommendation = response.choices[0].message.content
             if "I recommend" not in recommendation:
