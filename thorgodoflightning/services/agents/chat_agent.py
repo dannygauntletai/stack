@@ -232,35 +232,87 @@ class ChatAgent(BaseAgent):
         )
         return chat_response.choices[0].message.content
 
+    async def _filter_results_with_llm(self, query: str, vector_results: List[Dict]) -> List[Dict]:
+        """Filter vector results using LLM to determine relevance"""
+        try:
+            filtered_results = []
+            
+            for result in vector_results:
+                metadata = result.get('metadata', {})
+                product_context = {
+                    'title': metadata.get('productTitle', ''),
+                    'summary': metadata.get('summary', ''),
+                    'score': result.get('score', 0)
+                }
+                
+                response = self.openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": """You are a relevance filtering expert.
+                        Evaluate if the product is truly relevant to the user's query.
+                        Return ONLY a JSON object with:
+                        {
+                            "is_relevant": true/false,
+                            "relevance_score": 0-1 (float),
+                            "reason": "brief explanation"
+                        }"""},
+                        {"role": "user", "content": f"""
+                        User Query: {query}
+                        
+                        Product Information:
+                        {json.dumps(product_context, indent=2)}
+                        
+                        Is this product truly relevant to the user's query?
+                        Consider:
+                        1. Direct relevance to the query topic
+                        2. Whether it actually addresses the user's need
+                        3. How well it matches the specific request"""}
+                    ],
+                    response_format={ "type": "json_object" },
+                    temperature=0.5
+                )
+                
+                evaluation = json.loads(response.choices[0].message.content)
+                
+                if evaluation['is_relevant']:
+                    # Adjust the vector score based on LLM relevance
+                    result['score'] = result['score'] * evaluation['relevance_score']
+                    filtered_results.append(result)
+                    
+                    logger.info(f"Filtered result: {metadata.get('productTitle')} - Score: {result['score']}")
+                    logger.info(f"Reason: {evaluation['reason']}")
+            
+            # Sort by adjusted scores
+            filtered_results.sort(key=lambda x: x['score'], reverse=True)
+            return filtered_results
+            
+        except Exception as e:
+            logger.error(f"Error in LLM filtering: {str(e)}")
+            return vector_results  # Return original results if filtering fails
+
     async def _handle_report_query(self, query: str, requirements: Dict) -> str:
         """Handle queries about previous reports and product recommendations"""
         try:
-            # Use search_similar with the report-metadata namespace and increased limit
+            # Initial vector search
             vector_results = await VectorService.search_similar(
                 query,
-                limit=10,  # Increased from 3 to 10 to get more potential matches
+                limit=10,
                 namespace="report-metadata"
             )
             
             logger.info(f"🔍 Search query: {query}")
-            logger.info(f"📊 Retrieved {len(vector_results)} vector results from report-metadata namespace")
+            logger.info(f"📊 Retrieved {len(vector_results)} initial vector results")
             
-            # Log each result's full content
-            for i, result in enumerate(vector_results):
-                logger.info(f"\n=== Result {i+1} ===")
-                logger.info(f"Score: {result.get('score')}")
-                logger.info(f"ID: {result.get('id')}")
-                logger.info("Metadata:")
-                for key, value in result.get('metadata', {}).items():
-                    logger.info(f"  {key}: {value}")
-                logger.info("=" * 50)
+            # Apply LLM filtering
+            filtered_results = await self._filter_results_with_llm(query, vector_results)
+            logger.info(f"🎯 Filtered down to {len(filtered_results)} relevant results")
             
-            if not vector_results:
-                return "I couldn't find any relevant reports about that topic."
+            if not filtered_results:
+                return "I couldn't find any relevant products that match your request."
             
             # Deduplicate products by URL to ensure unique items
             unique_products = {}  # Use URL as key to deduplicate
-            for result in vector_results:
+            for result in filtered_results:
                 metadata = result.get('metadata', {})
                 url = metadata.get('productUrl', '')
                 
@@ -363,8 +415,7 @@ class ChatAgent(BaseAgent):
                     
                     Here's why this matches your needs:
                     [Your explanation focusing on how it matches their specific request]
-                    
-                    You can find it here: [Product Link]"""},
+                    """},
                     {"role": "user", "content": f"""
                     Original User Query: {original_query}
                     User Requirements: {requirements_context}

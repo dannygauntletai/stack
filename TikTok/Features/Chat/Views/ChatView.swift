@@ -7,6 +7,7 @@ struct ChatView: View {
     @StateObject private var feedViewModel = ShortFormFeedViewModel()
     @State private var messageText = ""
     @State private var showSessionHistory = false
+    @State private var shouldScrollToBottom = false
     
     var body: some View {
         NavigationView {
@@ -16,18 +17,31 @@ struct ChatView: View {
                         MessageListView(
                             messages: viewModel.messages,
                             feedViewModel: feedViewModel,
-                            scrollProxy: proxy
+                            scrollProxy: proxy,
+                            shouldScrollToBottom: $shouldScrollToBottom
                         )
+                        .padding(.horizontal)
+                        .padding(.bottom, 16)
                     }
-                    .onChange(of: viewModel.messages.count) { _ in
-                        scrollToLastMessage(proxy: proxy)
+                    .safeAreaInset(edge: .bottom) {
+                        MessageInputView(
+                            messageText: $messageText,
+                            onSend: {
+                                sendMessage()
+                                shouldScrollToBottom = true
+                            }
+                        )
+                        .background(Color(UIColor.systemBackground))
                     }
+                    .simultaneousGesture(
+                        DragGesture().onChanged { _ in
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                                         to: nil,
+                                                         from: nil,
+                                                         for: nil)
+                        }
+                    )
                 }
-                
-                MessageInputView(
-                    messageText: $messageText,
-                    onSend: sendMessage
-                )
             }
             .navigationTitle("Chat")
             .navigationBarTitleDisplayMode(.inline)
@@ -43,17 +57,7 @@ struct ChatView: View {
         }
         .onAppear {
             viewModel.startListeningToMessages()
-        }
-    }
-    
-    private func scrollToLastMessage(proxy: ScrollViewProxy) {
-        if let lastMessage = viewModel.messages.last {
-            withAnimation {
-                let finalId = lastMessage.isMultiPartMessage ? 
-                    "\(lastMessage.id)-\(lastMessage.textParts.count - 1)" : 
-                    lastMessage.id
-                proxy.scrollTo(finalId, anchor: .bottom)
-            }
+            shouldScrollToBottom = true
         }
     }
     

@@ -4,9 +4,12 @@ struct MessageListView: View {
     let messages: [ChatMessage]
     @ObservedObject var feedViewModel: ShortFormFeedViewModel
     let scrollProxy: ScrollViewProxy
+    @Binding var shouldScrollToBottom: Bool
     
     var body: some View {
         LazyVStack(spacing: 4) {
+            Spacer(minLength: 8)
+            
             ForEach(messages) { message in
                 if message.isMultiPartMessage {
                     MultiPartMessageView(message: message, feedViewModel: feedViewModel)
@@ -17,10 +20,19 @@ struct MessageListView: View {
                         .environmentObject(feedViewModel)
                 }
             }
+            
+            Color.clear
+                .frame(height: 1)
+                .id("bottom")
         }
-        .padding(.horizontal)
         .onChange(of: messages.count) { _ in
             scrollToLatest()
+        }
+        .onChange(of: shouldScrollToBottom) { newValue in
+            if newValue {
+                scrollToLatest()
+                shouldScrollToBottom = false
+            }
         }
     }
     
@@ -29,13 +41,10 @@ struct MessageListView: View {
     }
     
     private func scrollToLatest() {
-        guard let lastMessage = messages.last else { return }
-        
-        withAnimation {
-            let finalId = lastMessage.isMultiPartMessage ? 
-                getLastPartId(lastMessage) : 
-                lastMessage.id
-            scrollProxy.scrollTo(finalId, anchor: .bottom)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.easeOut(duration: 0.2)) {
+                scrollProxy.scrollTo("bottom", anchor: .bottom)
+            }
         }
     }
 }
