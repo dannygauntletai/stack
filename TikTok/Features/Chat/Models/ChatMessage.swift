@@ -30,13 +30,20 @@ struct ChatMessage: Identifiable, Equatable {
         
         // Parse video IDs if present
         var videoIds: [String] = []
-        if let content = data["content"] as? String,
-           content.contains("Video ID:") {
-            let components = content.components(separatedBy: "Video ID:")
-            for component in components.dropFirst() {
-                let id = component.trimmingCharacters(in: .whitespacesAndNewlines)
-                    .components(separatedBy: .newlines)[0]
-                videoIds.append(id)
+        if let content = data["content"] as? String {
+            // Only parse video IDs if this is a recommendation message
+            if content.contains("Here are some relevant videos") && content.contains("Video ID:") {
+                print("🎯 Raw content: \(content)")
+                let components = content.components(separatedBy: "Video ID:")
+                print("🎯 Components: \(components)")
+                for component in components.dropFirst() {
+                    let id = component
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: "\n", with: "")
+                        .trimmingCharacters(in: .whitespaces)
+                    print("🎯 Extracted ID: \(id)")
+                    videoIds.append(id)
+                }
             }
         }
         self.videoIds = videoIds

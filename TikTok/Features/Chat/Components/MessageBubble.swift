@@ -151,6 +151,7 @@ struct MessageBubble: View {
     }
     
     private func handleVideoTap(videoId: String) {
+        print("🎯 Video tap - ID before processing: \(videoId)")
         print("👆 Video tapped: \(videoId)")
         isLoadingVideo = true
         
@@ -160,6 +161,8 @@ struct MessageBubble: View {
                     .collection("videos")
                     .document(videoId)
                     .getDocument()
+                
+                print("🎯 Video document data: \(videoDoc.data() ?? [:])")
                 
                 if let video = try await processVideoDocument(videoDoc) {
                     // Cache the video before showing player
@@ -232,7 +235,10 @@ struct MessageBubble: View {
         let db = Firestore.firestore()
         let storage = Storage.storage()
         
+        print("🎯 Loading thumbnails for videoIds: \(message.videoIds)")
+        
         for videoId in message.videoIds {
+            print("🎯 Processing videoId: \(videoId)")
             // Skip if we already have this thumbnail
             if videoThumbnails.contains(where: { $0.id == videoId }) {
                 print("⏭️ Skipping already loaded thumbnail for video: \(videoId)")
@@ -245,6 +251,8 @@ struct MessageBubble: View {
                     print("❌ Error loading video thumbnail: \(error.localizedDescription)")
                     return
                 }
+                
+                print("🎯 Got document data: \(snapshot?.data() ?? [:])")
                 
                 if let data = snapshot?.data(),
                    let thumbnailPath = data["thumbnailUrl"] as? String {

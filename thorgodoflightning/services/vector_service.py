@@ -48,48 +48,15 @@ class VectorService:
                 raise
 
     @classmethod
-    async def _generate_embeddings(cls, data: Dict) -> List[float]:
+    async def _generate_embeddings(cls, text: str) -> List[float]:
         """Generate embeddings using OpenAI's API"""
         if not cls._openai_client:
             cls.initialize()
 
-        # Create a rich text representation prioritizing the video summary
-        text_content = []
-        
-        # Start with video summary if available (given highest weight)
-        if 'videoSummary' in data:
-            text_content.append(f"Summary: {data['videoSummary']}")
-            
-        # Add title and description
-        if 'title' in data:
-            text_content.append(f"Title: {data['title']}")
-        if 'description' in data:
-            text_content.append(f"Description: {data['description']}")
-            
-        # Add other metadata with less weight
-        if 'content_categories' in data:
-            cats = data['content_categories']
-            if 'primary_category' in cats:
-                text_content.append(f"Category: {cats['primary_category']}")
-            if 'activities' in cats:
-                activities = [f"{a['label']}" for a in cats['activities']]
-                text_content.append(f"Activities: {', '.join(activities)}")
-
-        # Add health analysis
-        if 'healthAnalysis' in data:
-            health = data['healthAnalysis']
-            if 'benefits' in health:
-                text_content.append(f"Benefits: {', '.join(health['benefits'])}")
-            if 'tags' in health:
-                text_content.append(f"Tags: {', '.join(health['tags'])}")
-
-        # Join all content with newlines
-        full_text = "\n".join(text_content)
-
         try:
             response = cls._openai_client.embeddings.create(
                 model="text-embedding-ada-002",
-                input=full_text
+                input=text
             )
             return response.data[0].embedding
         except Exception as e:
@@ -103,30 +70,27 @@ class VectorService:
             cls.initialize()
             
         try:
-            # Generate embeddings from video metadata
-            vector = await cls._generate_embeddings(video_data)
-            
-            # Get health analysis data
+            # Extract and vectorize only the summary
             health_analysis = video_data.get('healthAnalysis', {})
+            # Get the actual text content from the summary
+            summary_text = health_analysis.get('summary', '')
+            if isinstance(summary_text, dict):
+                summary_text = summary_text.get('summary', '')
             
-            # Extract supplement names for metadata
-            supplement_names = [
-                supp.get('name', '') 
-                for supp in health_analysis.get('supplement_recommendations', [])[:2]  # Limit to 2 supplements
-            ]
+            print(f"<THOR DEBUG> Vectorizing summary: {summary_text[:200]}...")  # Print first 200 chars
+            
+            if not summary_text:
+                logger.warning(f"No summary found for video {video_data.get('id')}")
+                summary_text = "No summary available"
+                
+            # Generate embeddings from summary textf
+            vector = await cls._generate_embeddings(summary_text)
             
             # Store in Pinecone with sanitized metadata
             metadata = {
                 'video_id': str(video_data['id']),
-                'title': str(video_data.get('caption', '')),
-                'content_type': str(health_analysis.get('content_type', '')),
-                'summary': str(health_analysis.get('summary', '')),
-                'health_score': float(video_data.get('healthImpactScore', 0)),
-                'benefits': health_analysis.get('benefits', []),
+                'summary': summary_text,  # Store actual text for retrieval
                 'tags': health_analysis.get('tags', [])[:3],
-                'longevity_impact': str(health_analysis.get('longevity_impact', '')),
-                'supplement_recommendations': supplement_names,  # List of supplement names
-                'indexed_at': datetime.now().isoformat()
             }
             
             # Filter out any None or empty values
@@ -150,10 +114,10 @@ class VectorService:
         """Search for similar items using vector similarity"""
         if not cls._instance:
             cls.initialize()
-            
+
         try:
             # Generate query vector
-            query_vector = await cls._generate_embeddings({'text': query})
+            query_vector = await cls._generate_embeddings(query)
             
             # Search Pinecone with namespace
             results = cls._instance.query(
@@ -162,6 +126,10 @@ class VectorService:
                 namespace=namespace,
                 include_metadata=True
             )
+            print("================================================")
+            print(f"<THOR DEBUG> Found {len(results.matches)} matches")
+            print(results.matches)
+            print("================================================")
             
             return [{
                 'id': match.id,
@@ -170,59 +138,6 @@ class VectorService:
             } for match in results.matches]
         except Exception as e:
             logger.error(f"Error searching vectors: {str(e)}", exc_info=True)
-            raise
-
-    @classmethod
-    async def search_k_similar(cls, query: str, limit: int = 3, namespace: str = "video-metadata") -> List[Dict]:
-        """Search for similar videos using multiple LLM-generated queries"""
-        if not cls._instance:
-            cls.initialize()
-            
-        try:
-            # Generate multiple search queries using LLM
-            client = OpenAI(api_key=Config.OPENAI_API_KEY)
-            response = client.chat.completions.create(
-                model="gpt-4-turbo-preview",
-                messages=[
-                    {"role": "system", "content": "Generate 5 different search queries that capture different aspects of the user's video request. Make each query specific and focused on different aspects. Return only the queries, one per line."},
-                    {"role": "user", "content": query}
-                ],
-                temperature=0.7
-            )
-            
-            # Split queries into list
-            search_queries = response.choices[0].message.content.strip().split('\n')
-            print(f"🔍 Generated queries: {search_queries}")
-            
-            # Search with each query
-            search_tasks = [cls.search_similar(q, limit=limit, namespace=namespace) for q in search_queries]
-            all_results = await asyncio.gather(*search_tasks)
-            
-            # Combine and deduplicate results
-            seen_ids = set()
-            unique_results = []
-            
-            # Flatten and deduplicate while keeping highest scores
-            for results in all_results:
-                for result in results:
-                    video_id = result['id']
-                    if video_id not in seen_ids:
-                        seen_ids.add(video_id)
-                        unique_results.append(result)
-                    else:
-                        # If we've seen this ID, update if new score is higher
-                        existing_idx = next(i for i, r in enumerate(unique_results) if r['id'] == video_id)
-                        if result['score'] > unique_results[existing_idx]['score']:
-                            unique_results[existing_idx] = result
-            
-            # Sort by score and limit results
-            final_results = sorted(unique_results, key=lambda x: x['score'], reverse=True)[:limit]
-            print(f"✨ Found {len(final_results)} unique items")
-            
-            return final_results
-            
-        except Exception as e:
-            logger.error(f"Error in search_k_similar: {str(e)}", exc_info=True)
             raise
 
     @classmethod

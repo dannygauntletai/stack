@@ -123,9 +123,9 @@ class ChatAgent(BaseAgent):
         """Search for relevant videos"""
         try:
             # Use enhanced search with parsed query and video namespace
-            vector_results = await VectorService.search_k_similar(
+            vector_results = await VectorService.search_similar(
                 query,
-                limit=1,
+                limit=3,
                 namespace="video-metadata"  # Specify the video namespace
             )
             video_ids = [result['id'] for result in vector_results]
@@ -202,21 +202,22 @@ class ChatAgent(BaseAgent):
     async def _handle_video_recommendation(self, query: str) -> str:
         """Handle video recommendation requests"""
         # Use enhanced search with parsed query and video namespace
-        vector_results = await VectorService.search_k_similar(
+        vector_results = await VectorService.search_similar(
             query,
-            limit=1,
+            limit=3,
             namespace="video-metadata"  # Specify the video namespace
         )
-        video_ids = [result['id'] for result in vector_results]
-        videos = await self.db_service.get_videos_by_ids(video_ids)
         
-        # Format video response
-        response_text = "Here are some relevant videos:\n"
-        for video in videos:
-            response_text += f"{video.get('caption', 'Untitled')}\n"
-            response_text += f"  Video ID: {video['id']}\n\n"
+        # Handle no results case
+        if not vector_results:
+            return "I couldn't find any relevant videos matching your request. Try searching with different keywords or check back later when more videos are available."
+        
+        # Format response with video IDs
+        response = "Here are some relevant videos:\n\n"
+        for result in vector_results:
+            response += f"  Video ID: {result['id']}\n\n"
             
-        return response_text
+        return response
         
     async def _handle_general_chat(self, content: str) -> str:
         """Handle general chat interactions"""
@@ -234,8 +235,8 @@ class ChatAgent(BaseAgent):
     async def _handle_report_query(self, query: str, requirements: Dict) -> str:
         """Handle queries about previous reports and product recommendations"""
         try:
-            # Use search_k_similar with the report-metadata namespace and increased limit
-            vector_results = await VectorService.search_k_similar(
+            # Use search_similar with the report-metadata namespace and increased limit
+            vector_results = await VectorService.search_similar(
                 query,
                 limit=10,  # Increased from 3 to 10 to get more potential matches
                 namespace="report-metadata"

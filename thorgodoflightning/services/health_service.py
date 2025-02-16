@@ -136,6 +136,45 @@ class HealthService:
             
             print(f"<THOR_DEBUG> Parsed analysis: {json.dumps(analysis, indent=2)}")
             
+            # Generate a comprehensive one-line summary
+            summary_prompt = f"""
+            Create a comprehensive, detailed summary of this video's content. Focus on what is actually shown and discussed:
+            
+            1. Main topic or activity shown
+            2. Key actions or processes demonstrated
+            3. Objects, tools, or ingredients shown
+            4. Environment or setting
+            5. Step-by-step actions if applicable
+            6. Results or outcomes shown
+            7. Techniques or methods demonstrated
+            8. Notable details or unique aspects
+            
+            Format the summary as a detailed paragraph that includes synonyms and related terms.
+            Make it extremely detailed and keyword-rich for maximum searchability.
+            
+            Video Content:
+            {json.dumps(video_analysis, indent=2)}
+            """
+            
+            summary_response = openai_client.chat.completions.create(
+                model="gpt-4-turbo-preview",
+                messages=[
+                    {"role": "system", "content": """You are a content analyzer. 
+                    Create extremely detailed, searchable summaries that capture what is actually shown in the video.
+                    Focus on observable content, actions, and details rather than interpretations.
+                    Include specific terms, measurements, and alternatives to maximize findability.
+                    Write in a natural, flowing style while incorporating as many relevant keywords as possible."""},
+                    {"role": "user", "content": summary_prompt}
+                ],
+                temperature=0.3,
+                max_tokens=1000
+            )
+            
+            # Update the summary in the reasoning object
+            analysis['reasoning']['summary'] = summary_response.choices[0].message.content.strip()
+
+            print(f"<THOR DEBUG SUMMARY> Raw GPT response: {analysis['reasoning']['summary']}")
+
             return score, analysis['reasoning']
             
         except Exception as e:
