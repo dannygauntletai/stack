@@ -75,4 +75,42 @@ struct ChatMessage: Identifiable, Equatable {
     var isRecommendationMessage: Bool {
         return !videoIds.isEmpty && text?.contains("Here are some relevant videos") == true
     }
+    
+    // Add a computed property to split text into parts
+    var textParts: [String] {
+        guard let text = text else { return [] }
+        
+        // Split on double newlines
+        let parts = text.components(separatedBy: "\n\n")
+        
+        return parts
+            .map { part -> String in
+                var cleanedText = part.trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                // Remove bullet points and clean up
+                cleanedText = cleanedText
+                    .replacingOccurrences(of: "^[•\\-\\*]\\s*", with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                // Remove excessive spaces
+                cleanedText = cleanedText.replacingOccurrences(
+                    of: "\\s+",
+                    with: " ",
+                    options: .regularExpression
+                )
+                
+                return cleanedText
+            }
+            .filter { !$0.isEmpty }
+    }
+    
+    // Add a property to determine if this is a multi-part message
+    var isMultiPartMessage: Bool {
+        return textParts.count > 1
+    }
+    
+    // Add helper property to identify if this is the last part of a multi-part message
+    func isLastPart(index: Int) -> Bool {
+        return !isMultiPartMessage || index == textParts.count - 1
+    }
 } 

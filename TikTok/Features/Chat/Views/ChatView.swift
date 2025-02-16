@@ -13,75 +13,92 @@ struct ChatView: View {
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: 4) {
-                            ForEach(viewModel.messages) { message in
-                                MessageBubble(message: message)
-                                    .id(message.id)
-                                    .environmentObject(feedViewModel)
-                            }
-                        }
-                        .padding(.horizontal)
+                        MessageListView(
+                            messages: viewModel.messages,
+                            feedViewModel: feedViewModel,
+                            scrollProxy: proxy
+                        )
                     }
                     .onChange(of: viewModel.messages.count) { _ in
-                        if let lastMessage = viewModel.messages.last {
-                            withAnimation {
-                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                            }
-                        }
+                        scrollToLastMessage(proxy: proxy)
                     }
                 }
                 
-                // Input area
-                HStack(spacing: 12) {
-                    TextField("Message", text: $messageText, axis: .vertical)
-                        .lineLimit(1...5)
-                        .textFieldStyle(.plain)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color(UIColor.systemGray6))
-                        .cornerRadius(20)
-                    
-                    Button(action: sendMessage) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.blue)
-                    }
-                    .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                MessageInputView(
+                    messageText: $messageText,
+                    onSend: sendMessage
+                )
             }
             .navigationTitle("Chat")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        showSessionHistory = true
-                    }) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 20))
-                            .foregroundColor(.primary)
-                    }
+                    historyButton
                 }
             }
             .sheet(isPresented: $showSessionHistory) {
-                ChatHistoryView(parentViewModel: viewModel)  // Pass the parent viewModel
+                ChatHistoryView(parentViewModel: viewModel)
                     .presentationDragIndicator(.visible)
             }
         }
         .onAppear {
-            print("💬 ChatView appeared, message count: \(viewModel.messages.count)")
             viewModel.startListeningToMessages()
+        }
+    }
+    
+    private func scrollToLastMessage(proxy: ScrollViewProxy) {
+        if let lastMessage = viewModel.messages.last {
+            withAnimation {
+                let finalId = lastMessage.isMultiPartMessage ? 
+                    "\(lastMessage.id)-\(lastMessage.textParts.count - 1)" : 
+                    lastMessage.id
+                proxy.scrollTo(finalId, anchor: .bottom)
+            }
+        }
+    }
+    
+    private var historyButton: some View {
+        Button(action: { showSessionHistory = true }) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 20))
+                .foregroundColor(.primary)
         }
     }
     
     private func sendMessage() {
         guard !messageText.isEmpty else { return }
         let text = messageText
-        messageText = ""  // Clear text immediately
+        messageText = ""  // Clear text immediately before sending
+        
         Task {
             await viewModel.sendMessage(text)
         }
+    }
+}
+
+struct MessageInputView: View {
+    @Binding var messageText: String
+    let onSend: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            TextField("Message", text: $messageText, axis: .vertical)
+                .lineLimit(1...5)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(UIColor.systemGray6))
+                .cornerRadius(20)
+            
+            Button(action: onSend) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(.blue)
+            }
+            .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 

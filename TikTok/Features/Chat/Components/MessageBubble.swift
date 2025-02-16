@@ -19,6 +19,9 @@ struct MessageBubble: View {
     private let inactiveColor = Color.gray.opacity(0.5)
     private let activeColor = Color.blue
     
+    // Add property to track if this is the last part
+    let isLastPart: Bool
+    
     // Add computed property to determine if feedback buttons should show
     private var shouldShowFeedback: Bool {
         // Debug prints
@@ -106,8 +109,8 @@ struct MessageBubble: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 
-                // Add feedback buttons below AI messages
-                if shouldShowFeedback && !feedbackSubmitted {
+                // Only show feedback buttons on the last part
+                if shouldShowFeedback && !feedbackSubmitted && isLastPart {
                     HStack(spacing: 20) {
                         Button(action: submitPositiveFeedback) {
                             Image(systemName: "hand.thumbsup.fill")
@@ -409,7 +412,7 @@ struct MessageBubble: View {
 
 #Preview {
     VStack {
-        MessageBubble(message: ChatMessage(id: "1", text: "Hello there!", imageURL: nil, isFromCurrentUser: true, timestamp: Date(), senderId: "user1", sequence: 0))
-        MessageBubble(message: ChatMessage(id: "2", text: "Hi! How are you?", imageURL: nil, isFromCurrentUser: false, timestamp: Date(), senderId: "user2", sequence: 0))
+        MessageBubble(message: ChatMessage(id: "1", text: "Hello there!", imageURL: nil, isFromCurrentUser: true, timestamp: Date(), senderId: "user1", sequence: 0), isLastPart: true)
+        MessageBubble(message: ChatMessage(id: "2", text: "Hi! How are you?", imageURL: nil, isFromCurrentUser: false, timestamp: Date(), senderId: "user2", sequence: 0), isLastPart: true)
     }
 } 

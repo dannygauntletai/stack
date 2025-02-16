@@ -381,7 +381,7 @@ class ChatAgent(BaseAgent):
             recommendation = response.choices[0].message.content
             if "I recommend" not in recommendation:
                 # Force a recommendation if the LLM didn't provide one
-                return f"I recommend the {formatted_products[0]['title']}.\n\nThis product appears to be the best match for your needs.\n\nYou can find it here: {formatted_products[0]['url']}"
+                return f"I recommend the {formatted_products[0]['title']}.\n\nThis product appears to be the best match for your needs."
             
             return recommendation
             
