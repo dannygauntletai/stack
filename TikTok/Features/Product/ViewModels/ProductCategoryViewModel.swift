@@ -103,4 +103,34 @@ class ProductCategoryViewModel: ObservableObject {
             print("Error creating category: \(error)")
         }
     }
+    
+    func deleteCategory(_ category: ProductCategory) async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        do {
+            // First delete all products in the category
+            let productsSnapshot = try await db.collection("users")
+                .document(userId)
+                .collection("productCategories")
+                .document(category.id)
+                .collection("products")
+                .getDocuments()
+            
+            // Delete each product document
+            for doc in productsSnapshot.documents {
+                try await doc.reference.delete()
+            }
+            
+            // Then delete the category document itself
+            try await db.collection("users")
+                .document(userId)
+                .collection("productCategories")
+                .document(category.id)
+                .delete()
+            
+            print("✅ Successfully deleted category: \(category.name)")
+        } catch {
+            print("❌ Error deleting category: \(error)")
+        }
+    }
 } 

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ProductCategoriesView: View {
     @StateObject private var viewModel = ProductCategoryViewModel()
+    @State private var showingDeleteAlert = false
+    @State private var categoryToDelete: ProductCategory?
 
     var body: some View {
         List {
@@ -26,9 +28,32 @@ struct ProductCategoriesView: View {
                     .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
                 }
             }
+            .onDelete { indexSet in
+                if let index = indexSet.first {
+                    categoryToDelete = viewModel.categories[index]
+                    showingDeleteAlert = true
+                }
+            }
         }
         .listStyle(PlainListStyle())
         .padding(.top, 0)
+        .alert("Delete Category", isPresented: $showingDeleteAlert) {
+            Button("Cancel", role: .cancel) {
+                categoryToDelete = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let category = categoryToDelete {
+                    Task {
+                        await viewModel.deleteCategory(category)
+                        categoryToDelete = nil
+                    }
+                }
+            }
+        } message: {
+            if let category = categoryToDelete {
+                Text("Are you sure you want to delete '\(category.name)'? This will also delete all products in this category.")
+            }
+        }
         .task {
             // Fetch product counts when view appears
             await viewModel.fetchProductCounts()

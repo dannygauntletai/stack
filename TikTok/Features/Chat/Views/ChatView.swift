@@ -14,15 +14,23 @@ struct ChatView: View {
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        MessageListView(
-                            messages: viewModel.messages,
-                            feedViewModel: feedViewModel,
-                            scrollProxy: proxy,
-                            shouldScrollToBottom: $shouldScrollToBottom
-                        )
-                        .padding(.horizontal)
-                        .padding(.bottom, 16)
+                        VStack(spacing: 0) {
+                            MessageListView(
+                                messages: viewModel.messages,
+                                feedViewModel: feedViewModel,
+                                scrollProxy: proxy,
+                                shouldScrollToBottom: $shouldScrollToBottom
+                            )
+                            .padding(.horizontal)
+                            
+                            // Add space for feedback buttons and scrolling
+                            Spacer()
+                                .frame(minHeight: 150) // Increased to ensure space for buttons
+                        }
+                        // Remove the fixed minHeight frame as it's causing issues
+                        .frame(maxWidth: .infinity)
                     }
+                    .scrollDismissesKeyboard(.immediately)
                     .safeAreaInset(edge: .bottom) {
                         MessageInputView(
                             messageText: $messageText,
@@ -33,14 +41,6 @@ struct ChatView: View {
                         )
                         .background(Color(UIColor.systemBackground))
                     }
-                    .simultaneousGesture(
-                        DragGesture().onChanged { _ in
-                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
-                                                         to: nil,
-                                                         from: nil,
-                                                         for: nil)
-                        }
-                    )
                 }
             }
             .navigationTitle("Chat")

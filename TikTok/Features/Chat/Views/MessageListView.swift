@@ -8,22 +8,24 @@ struct MessageListView: View {
     
     var body: some View {
         LazyVStack(spacing: 4) {
-            Spacer(minLength: 8)
-            
             ForEach(messages) { message in
                 if message.isMultiPartMessage {
                     MultiPartMessageView(message: message, feedViewModel: feedViewModel)
                         .id(getLastPartId(message))
+                        .padding(.bottom, 8)
                 } else {
                     MessageBubble(message: message, isLastPart: true)
                         .id(message.id)
                         .environmentObject(feedViewModel)
+                        .padding(.bottom, 8)
                 }
             }
             
-            Color.clear
-                .frame(height: 1)
-                .id("bottom")
+            if !messages.isEmpty {
+                Color.clear
+                    .frame(height: 60)
+                    .id("bottom")
+            }
         }
         .onChange(of: messages.count) { _ in
             scrollToLatest()
