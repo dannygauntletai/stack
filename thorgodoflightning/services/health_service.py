@@ -11,7 +11,6 @@ class HealthService:
     @staticmethod
     async def analyze_health_impact(video_analysis: Dict) -> Tuple[float, Dict]:
         """Get health impact analysis from GPT-3.5 Turbo."""
-        print("<THOR_DEBUG> Starting health impact analysis")
         
         try:
             logger.info("Starting health impact analysis")
@@ -122,7 +121,7 @@ class HealthService:
             )
             
             content = response.choices[0].message.content
-            print(f"<THOR_DEBUG> Raw GPT response: {content}")
+            logger.debug("Raw GPT response received")
             
             analysis = json.loads(content)
             score = float(analysis['score'])
@@ -134,7 +133,7 @@ class HealthService:
                     score
                 )
             
-            print(f"<THOR_DEBUG> Parsed analysis: {json.dumps(analysis, indent=2)}")
+            logger.debug("Analysis parsed successfully")
             
             # Generate a comprehensive one-line summary
             summary_prompt = f"""
@@ -173,13 +172,11 @@ class HealthService:
             # Update the summary in the reasoning object
             analysis['reasoning']['summary'] = summary_response.choices[0].message.content.strip()
 
-            print(f"<THOR DEBUG SUMMARY> Raw GPT response: {analysis['reasoning']['summary']}")
-
             return score, analysis['reasoning']
             
         except Exception as e:
-            print(f"<THOR_DEBUG> ERROR in health impact analysis: {str(e)}")
-            print("<THOR_DEBUG> Error traceback: ", traceback.format_exc())
+            logger.error(f"Error in health impact analysis: {str(e)}")
+            logger.error("Error traceback: ", traceback.format_exc())
             raise ValueError(f"Health analysis failed: {str(e)}")
 
     @staticmethod

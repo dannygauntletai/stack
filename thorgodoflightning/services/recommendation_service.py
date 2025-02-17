@@ -32,7 +32,7 @@ class RecommendationService:
             
             return await self.db_service.get_videos_by_ids(video_ids)
         except Exception as e:
-            print(f"<THOR_DEBUG> Error getting recent videos: {str(e)}")
+            logger.error(f"Error getting recent videos: {str(e)}")
             raise ValueError(f"Failed to get user recent videos: {str(e)}")
 
     async def get_graph_recommendations(self, user_id: str, limit: int = 10) -> List[str]:

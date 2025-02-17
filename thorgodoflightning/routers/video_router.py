@@ -52,8 +52,8 @@ async def get_video(
             'video': video_data
         }
     except Exception as e:
-        print(f"<THOR_DEBUG> Router error: {str(e)}")
-        print("<THOR_DEBUG> Error traceback: ", traceback.format_exc())
+        logger.error(f"Router error: {str(e)}")
+        logger.error("Error traceback: ", traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/analyze")

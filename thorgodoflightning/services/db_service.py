@@ -1,6 +1,9 @@
 from firebase_admin import firestore
 from typing import Dict, Any, Tuple, Optional, List
 import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DatabaseService:
     def __init__(self, db: firestore.Client):
@@ -48,12 +51,12 @@ class DatabaseService:
             # Update document
             doc_ref.update(update_data)
             
-            print(f"<THOR_DEBUG> Updated video {video_id} with status {status}")
+            logger.info(f"Updated video {video_id} with status {status}")
             if data:
-                print(f"<THOR_DEBUG> Updated data: {update_data}")
+                logger.debug(f"Updated data: {update_data}")
                 
         except Exception as e:
-            print(f"<THOR_DEBUG> Error updating video: {str(e)}")
+            logger.error(f"Error updating video: {str(e)}")
             raise ValueError(f"Failed to update video status: {str(e)}")
 
     async def check_connection(self):
@@ -169,8 +172,8 @@ class DatabaseService:
                 
             return self._serialize_firestore_doc(doc.to_dict())
         except Exception as e:
-            print(f"<THOR_DEBUG> Error fetching video: {str(e)}")
-            print("<THOR_DEBUG> Error traceback: ", traceback.format_exc())
+            logger.error(f"Error fetching video: {str(e)}")
+            logger.error("Error traceback: ", traceback.format_exc())
             raise ValueError(f"Failed to fetch video: {str(e)}")
 
     async def get_videos_by_ids(self, video_ids: List[str]) -> List[Dict]:

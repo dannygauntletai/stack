@@ -14,7 +14,6 @@ class VideoService:
     @staticmethod
     async def analyze_video_content(video_url: str) -> Dict:
         logger.info(f"Starting video content analysis for URL: {video_url}")
-        print(f"<THOR_DEBUG> Processing video URL: {video_url}")
         
         try:
             # Get credentials from Config
@@ -122,16 +121,15 @@ class VideoService:
                 video_analysis['labels']
             )
             
-            print("<THOR_DEBUG> Enhanced analysis complete")
-            print(f"<THOR_DEBUG> Primary category: {video_analysis['content_categories']['primary_category']}")
-            print(f"<THOR_DEBUG> Detected activities: {detected_activities}")
-            print(f"<THOR_DEBUG> Analysis result: {json.dumps(video_analysis, indent=2)}")
+            logger.info("Enhanced analysis complete")
+            logger.info(f"Primary category: {video_analysis['content_categories']['primary_category']}")
+            logger.debug(f"Analysis result: {json.dumps(video_analysis, indent=2)}")
             
             return video_analysis
                 
         except Exception as e:
-            print(f"<THOR_DEBUG> ERROR in video analysis: {str(e)}")
-            print(f"<THOR_DEBUG> Error traceback: ", traceback.format_exc())
+            logger.error(f"Error in video analysis: {str(e)}")
+            logger.error(f"Error traceback: ", traceback.format_exc())
             raise ValueError(f"Video analysis failed: {str(e)}")
 
     @staticmethod

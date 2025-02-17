@@ -77,19 +77,17 @@ class VectorService:
             if isinstance(summary_text, dict):
                 summary_text = summary_text.get('summary', '')
             
-            print(f"<THOR DEBUG> Vectorizing summary: {summary_text[:200]}...")  # Print first 200 chars
-            
             if not summary_text:
                 logger.warning(f"No summary found for video {video_data.get('id')}")
                 summary_text = "No summary available"
                 
-            # Generate embeddings from summary textf
+            # Generate embeddings from summary text
             vector = await cls._generate_embeddings(summary_text)
             
             # Store in Pinecone with sanitized metadata
             metadata = {
                 'video_id': str(video_data['id']),
-                'summary': summary_text,  # Store actual text for retrieval
+                'summary': summary_text,
                 'tags': health_analysis.get('tags', [])[:3],
             }
             
@@ -126,10 +124,8 @@ class VectorService:
                 namespace=namespace,
                 include_metadata=True
             )
-            print("================================================")
-            print(f"<THOR DEBUG> Found {len(results.matches)} matches")
-            print(results.matches)
-            print("================================================")
+            logger.info(f"Found {len(results.matches)} matches")
+            logger.debug(f"Search results: {results.matches}")
             
             return [{
                 'id': match.id,
